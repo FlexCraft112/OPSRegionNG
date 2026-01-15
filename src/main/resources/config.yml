@@ -1,15 +1,49 @@
+# =====================================================
+# OPSRegionNG
 # Плагин разработан командой проекта FlexCraft - Хэлфи ツ
-# если обнаружили ошибку (Я в Discord @helfyyt)
-# Наш официальный Discord проекта FlexCraft - http://discord.gg/KSdY9z4Fb9
+# Discord: https://discord.gg/KSdY9z4Fb9
+# =====================================================
 
-# Регионы WorldGuard, где запрещён WorldEdit
-protected-regions:
-  - zona
-  - spawn
-
-# Сообщение игроку
-messages:
-  blocked: "&cВы не можете использовать WorldEdit в этом регионе."
-
-# Права обхода
+# Права обхода всех ограничений
 bypass-permission: opsregion.bypass
+
+# =====================================
+# НАСТРОЙКА РЕГИОНОВ WORLDGUARD
+# =====================================
+# Для каждого региона можно отдельно указать:
+# - break     → можно ли ЛОМАТЬ блоки
+# - place     → можно ли СТАВИТЬ блоки
+# - worldedit → можно ли использовать WorldEdit
+#
+# true  = разрешено
+# false = запрещено
+# =====================================
+
+regions:
+
+  # Спавн — полный запрет
+  spawn:
+    break: false
+    place: false
+    worldedit: false
+
+  # Админ-зона — полный запрет
+  zona:
+    break: false
+    place: false
+    worldedit: false
+
+  # Авто-шахта
+  # Можно ломать, но нельзя строить и использовать WE
+  mine:
+    break: true
+    place: false
+    worldedit: false
+
+# =====================================
+# СООБЩЕНИЯ ИГРОКАМ
+# =====================================
+messages:
+  break-blocked: "&cВы не можете ломать блоки в этом регионе."
+  place-blocked: "&cВы не можете строить в этом регионе."
+  worldedit-blocked: "&cВы не можете использовать WorldEdit в этом регионе."
