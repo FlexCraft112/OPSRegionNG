@@ -7,7 +7,6 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,10 +16,9 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.block.Action;
+import org.bukkit.inventory.EquipmentSlot;
 
 import java.util.Set;
-import java.util.UUID;
 
 public class BlockProtectionListener implements Listener {
 
@@ -30,117 +28,83 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* ========= BLOCK BREAK ========= */
+    /* ================= ЛОМАНИЕ ================= */
+
     @EventHandler
-    public void onBreak(BlockBreakEvent e) {
-        handle(e.getPlayer(), e, e.getBlock().getLocation(), "break");
+    public void onBreak(BlockBreakEvent event) {
+        handle(event.getPlayer(), event, "break");
     }
 
-    /* ========= BLOCK PLACE ========= */
+    /* ================= СТРОИТЕЛЬСТВО ================= */
+
     @EventHandler
-    public void onPlace(BlockPlaceEvent e) {
-        handle(e.getPlayer(), e, e.getBlock().getLocation(), "place");
+    public void onPlace(BlockPlaceEvent event) {
+        handle(event.getPlayer(), event, "place");
     }
 
-    /* ========= WATER / LAVA ========= */
+    /* ================= ВЁДРА ================= */
+
     @EventHandler
-    public void onBucket(PlayerBucketEmptyEvent e) {
-        handle(e.getPlayer(), e, e.getBlock().getLocation(), "place");
+    public void onBucket(PlayerBucketEmptyEvent event) {
+        handle(event.getPlayer(), event, "place");
     }
 
-    /* ========= ENTITIES ========= */
+    /* ================= ЛОДКИ / СТОЙКИ / РАМКИ ================= */
+
     @EventHandler
-    public void onEntityPlace(PlayerInteractEvent e) {
+    public void onInteract(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getItem() == null) return;
 
-        if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        if (e.getItem() == null) return;
+        Material type = event.getItem().getType();
 
-        Material m = e.getItem().getType();
-
-        switch (m) {
-            case ARMOR_STAND:
-            case ITEM_FRAME:
-            case GLOW_ITEM_FRAME:
-            case END_CRYSTAL:
-
-            case MINECART:
-            case CHEST_MINECART:
-            case HOPPER_MINECART:
-            case TNT_MINECART:
-            case FURNACE_MINECART:
-            case COMMAND_BLOCK_MINECART:
-
-            case OAK_BOAT:
-            case SPRUCE_BOAT:
-            case BIRCH_BOAT:
-            case JUNGLE_BOAT:
-            case ACACIA_BOAT:
-            case DARK_OAK_BOAT:
-            case MANGROVE_BOAT:
-            case BAMBOO_RAFT:
-                break;
-
-            default:
-                return;
+        if (
+            type.name().contains("BOAT") ||
+            type.name().contains("MINECART") ||
+            type == Material.ARMOR_STAND ||
+            type.name().contains("ITEM_FRAME")
+        ) {
+            handle(event.getPlayer(), event, "place");
         }
-
-        handle(e.getPlayer(), e, e.getClickedBlock().getLocation(), "place");
     }
 
-    /* ========= CORE ========= */
-    private void handle(Player p, Cancellable e, Location loc, String action) {
+    /* ================= ОБЩАЯ ЛОГИКА ================= */
+
+    private void handle(Player player, Cancellable event, String action) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && p.hasPermission(bypass)) return;
+        if (bypass != null && player.hasPermission(bypass)) return;
 
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
-                .get(BukkitAdapter.adapt(loc.getWorld()))
-                .getApplicableRegions(BukkitAdapter.asBlockVector(loc));
+                .get(BukkitAdapter.adapt(player.getWorld()))
+                .getApplicableRegions(BukkitAdapter.asBlockVector(player.getLocation()));
 
-        if (regions == null || regions.size() == 0) return;
+        if (regions == null) return;
 
         Set<String> cfgRegions = plugin.getConfig()
                 .getConfigurationSection("regions")
                 .getKeys(false);
 
-        UUID uuid = p.getUniqueId();
+        for (ProtectedRegion region : regions) {
 
-        boolean checked = false;
-        boolean allowed = false;
-
-        for (ProtectedRegion r : regions) {
-
-            String id = r.getId();
+            String id = region.getId();
             if (!cfgRegions.contains(id)) continue;
 
-            checked = true;
-
-            // владельцы и участники
-            if (r.getOwners().contains(uuid) || r.getMembers().contains(uuid)) {
-                allowed = true;
-                break;
-            }
-
-            boolean cfgAllow = plugin.getConfig().getBoolean(
-                    "regions." + id + "." + action,
-                    false
+            boolean allowed = plugin.getConfig().getBoolean(
+                    "regions." + id + "." + action, false
             );
 
-            if (cfgAllow) {
-                allowed = true;
-                break;
-            }
-        }
+            if (allowed) return;
 
-        if (checked && !allowed) {
             String msg = plugin.getConfig()
                     .getString("messages." + action + "-blocked", "&cЗапрещено.")
                     .replace("&", "§");
 
-            p.sendMessage(msg);
-            e.setCancelled(true);
+            player.sendMessage(msg);
+            event.setCancelled(true);
+            return;
         }
     }
 }
