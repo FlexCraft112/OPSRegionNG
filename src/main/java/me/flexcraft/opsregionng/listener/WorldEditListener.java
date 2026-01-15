@@ -8,13 +8,12 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 
-import java.util.List;
+import java.util.Set;
 
 public class WorldEditListener implements Listener {
 
@@ -37,7 +36,7 @@ public class WorldEditListener implements Listener {
         String message = event.getMessage().toLowerCase();
 
         // ловим ВСЕ команды WorldEdit
-        if (!message.startsWith("/we") && !message.startsWith("//")) {
+        if (!message.startsWith("//") && !message.startsWith("/we")) {
             return;
         }
 
@@ -52,15 +51,24 @@ public class WorldEditListener implements Listener {
                 BukkitAdapter.asBlockVector(player.getLocation())
         );
 
-        List<String> blockedRegions = plugin
-                .getConfig()
-                .getStringList("protected-regions");
+        Set<String> configRegions = plugin.getConfig()
+                .getConfigurationSection("regions")
+                .getKeys(false);
 
         for (ProtectedRegion region : regions) {
-            if (blockedRegions.contains(region.getId())) {
+            String id = region.getId();
 
+            if (!configRegions.contains(id)) continue;
+
+            boolean allowed = plugin.getConfig().getBoolean(
+                    "regions." + id + ".worldedit",
+                    false
+            );
+
+            if (!allowed) {
                 String msg = plugin.getConfig()
-                        .getString("messages.blocked", "&cWorldEdit запрещён здесь.")
+                        .getString("messages.worldedit-blocked",
+                                "&cВы не можете использовать WorldEdit в этом регионе.")
                         .replace("&", "§");
 
                 player.sendMessage(msg);
