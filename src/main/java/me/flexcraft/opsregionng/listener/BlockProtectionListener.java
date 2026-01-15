@@ -1,8 +1,8 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.LocalPlayer;
-import com.sk89q.worldguard.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
@@ -58,20 +58,25 @@ public class BlockProtectionListener implements Listener {
             String path = "regions." + region.getId();
             if (!plugin.getConfig().isConfigurationSection(path)) continue;
 
+            // владельцы и участники WorldGuard — всегда можно
             if (region.isOwner(wgPlayer) || region.isMember(wgPlayer)) return;
 
             boolean allowed = plugin.getConfig().getBoolean(
-                    path + (breaking ? ".break" : ".place"), false
+                    path + (breaking ? ".break" : ".place"),
+                    false
             );
 
             if (!allowed) {
-                player.sendMessage(
-                        plugin.getConfig()
-                                .getString(breaking
+                String msg = plugin.getConfig()
+                        .getString(
+                                breaking
                                         ? "messages.break-blocked"
-                                        : "messages.place-blocked")
-                                .replace("&", "§")
-                );
+                                        : "messages.place-blocked",
+                                "&cДействие запрещено."
+                        )
+                        .replace("&", "§");
+
+                player.sendMessage(msg);
                 event.setCancelled(true);
                 return;
             }
