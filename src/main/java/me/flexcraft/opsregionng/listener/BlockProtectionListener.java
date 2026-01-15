@@ -48,7 +48,7 @@ public class BlockProtectionListener implements Listener {
         handle(event.getPlayer(), event, event.getBlock().getLocation(), "place");
     }
 
-    /* ================= ENTITIES (boats, stands, carts) ================= */
+    /* ================= ENTITIES ================= */
     @EventHandler
     public void onEntityPlace(PlayerInteractEvent event) {
 
@@ -110,11 +110,8 @@ public class BlockProtectionListener implements Listener {
                 .getConfigurationSection("regions")
                 .getKeys(false);
 
-        // ✅ ПРАВИЛЬНОЕ ПОЛУЧЕНИЕ LocalPlayer
-        LocalPlayer lp = WorldGuard.getInstance()
-                .getPlatform()
-                .getMatcher()
-                .wrapPlayer(player);
+        // ✅ ПРАВИЛЬНО
+        LocalPlayer lp = BukkitAdapter.adapt(player);
 
         boolean checked = false;
         boolean allowed = false;
@@ -126,7 +123,7 @@ public class BlockProtectionListener implements Listener {
 
             checked = true;
 
-            // Владельцы и участники — всегда можно
+            // Владельцы и участники — можно
             if (region.isOwner(lp) || region.isMember(lp)) {
                 allowed = true;
                 break;
