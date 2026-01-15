@@ -1,10 +1,10 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import com.sk89q.worldguard.bukkit.BukkitAdapter;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
@@ -40,7 +40,6 @@ public class WorldEditListener implements Listener {
             return;
         }
 
-        // получаем RegionManager ЧЕРЕЗ API WorldGuard
         RegionManager regionManager = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
