@@ -1,0 +1,7 @@
+name: OPSRegionNG
+version: 1.0
+main: me.flexcraft.opsregionng.OPSRegionNG
+api-version: 1.20
+depend:
+  - WorldEdit
+  - WorldGuard
