@@ -3,7 +3,6 @@ package me.flexcraft.opsregionng.listener;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
@@ -11,60 +10,76 @@ import me.flexcraft.opsregionng.OPSRegionNG;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.Cancellable;
 
-import java.util.List;
+import java.util.Set;
 
-public class WorldEditListener implements Listener {
+public class BlockProtectionListener implements Listener {
 
     private final OPSRegionNG plugin;
 
-    public WorldEditListener(OPSRegionNG plugin) {
+    public BlockProtectionListener(OPSRegionNG plugin) {
         this.plugin = plugin;
     }
 
     @EventHandler
-    public void onCommand(PlayerCommandPreprocessEvent event) {
-        Player player = event.getPlayer();
+    public void onBlockBreak(BlockBreakEvent event) {
+        handle(event.getPlayer(), event, true);
+    }
 
-        // bypass permission
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        handle(event.getPlayer(), event, false);
+    }
+
+    private void handle(Player player, Cancellable event, boolean breaking) {
+
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) {
-            return;
-        }
+        if (bypass != null && player.hasPermission(bypass)) return;
 
-        String message = event.getMessage().toLowerCase();
-
-        // ловим команды WorldEdit
-        if (!message.startsWith("//") && !message.startsWith("/we")) {
-            return;
-        }
-
-        RegionManager regionManager = WorldGuard.getInstance()
+        ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
-                .get(BukkitAdapter.adapt(player.getWorld()));
+                .get(BukkitAdapter.adapt(player.getWorld()))
+                .getApplicableRegions(
+                        BukkitAdapter.asBlockVector(player.getLocation())
+                );
 
-        if (regionManager == null) return;
-
-        ApplicableRegionSet regions = regionManager.getApplicableRegions(
-                BukkitAdapter.asBlockVector(player.getLocation())
-        );
-
-        List<String> blockedRegions = plugin.getConfig()
-                .getStringList("protected-regions");
+        Set<String> regionKeys = plugin.getConfig()
+                .getConfigurationSection("regions")
+                .getKeys(false);
 
         for (ProtectedRegion region : regions) {
-            if (blockedRegions.contains(region.getId())) {
 
-                String msg = plugin.getConfig()
-                        .getString("messages.blocked", "&cWorldEdit запрещён здесь.")
-                        .replace("&", "§");
+            String id = region.getId();
+            if (!regionKeys.contains(id)) continue;
 
-                player.sendMessage(msg);
-                event.setCancelled(true);
+            // владельцы и участники могут
+            if (region.isOwner(player.getUniqueId()) ||
+                region.isMember(player.getUniqueId())) {
                 return;
             }
+
+            boolean allowed = plugin.getConfig().getBoolean(
+                    "regions." + id + (breaking ? ".break" : ".place"),
+                    false
+            );
+
+            if (allowed) return;
+
+            String msgKey = breaking
+                    ? "messages.break-blocked"
+                    : "messages.place-blocked";
+
+            String msg = plugin.getConfig()
+                    .getString(msgKey, "&cДействие запрещено.")
+                    .replace("&", "§");
+
+            player.sendMessage(msg);
+            event.setCancelled(true);
+            return;
         }
     }
 }
