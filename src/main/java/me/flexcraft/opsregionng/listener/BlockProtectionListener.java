@@ -2,7 +2,6 @@ package me.flexcraft.opsregionng.listener;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.LocalPlayer;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
@@ -21,6 +20,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.block.Action;
 
 import java.util.Set;
+import java.util.UUID;
 
 public class BlockProtectionListener implements Listener {
 
@@ -30,34 +30,34 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* ================= BLOCK BREAK ================= */
+    /* ========= BLOCK BREAK ========= */
     @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
-        handle(event.getPlayer(), event, event.getBlock().getLocation(), "break");
+    public void onBreak(BlockBreakEvent e) {
+        handle(e.getPlayer(), e, e.getBlock().getLocation(), "break");
     }
 
-    /* ================= BLOCK PLACE ================= */
+    /* ========= BLOCK PLACE ========= */
     @EventHandler
-    public void onBlockPlace(BlockPlaceEvent event) {
-        handle(event.getPlayer(), event, event.getBlock().getLocation(), "place");
+    public void onPlace(BlockPlaceEvent e) {
+        handle(e.getPlayer(), e, e.getBlock().getLocation(), "place");
     }
 
-    /* ================= WATER / LAVA ================= */
+    /* ========= WATER / LAVA ========= */
     @EventHandler
-    public void onBucket(PlayerBucketEmptyEvent event) {
-        handle(event.getPlayer(), event, event.getBlock().getLocation(), "place");
+    public void onBucket(PlayerBucketEmptyEvent e) {
+        handle(e.getPlayer(), e, e.getBlock().getLocation(), "place");
     }
 
-    /* ================= ENTITIES ================= */
+    /* ========= ENTITIES ========= */
     @EventHandler
-    public void onEntityPlace(PlayerInteractEvent event) {
+    public void onEntityPlace(PlayerInteractEvent e) {
 
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        if (event.getItem() == null) return;
+        if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (e.getItem() == null) return;
 
-        Material type = event.getItem().getType();
+        Material m = e.getItem().getType();
 
-        switch (type) {
+        switch (m) {
             case ARMOR_STAND:
             case ITEM_FRAME:
             case GLOW_ITEM_FRAME:
@@ -84,19 +84,14 @@ public class BlockProtectionListener implements Listener {
                 return;
         }
 
-        handle(
-            event.getPlayer(),
-            event,
-            event.getClickedBlock().getLocation(),
-            "place"
-        );
+        handle(e.getPlayer(), e, e.getClickedBlock().getLocation(), "place");
     }
 
-    /* ================= CORE LOGIC ================= */
-    private void handle(Player player, Cancellable event, Location loc, String action) {
+    /* ========= CORE ========= */
+    private void handle(Player p, Cancellable e, Location loc, String action) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) return;
+        if (bypass != null && p.hasPermission(bypass)) return;
 
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
@@ -106,35 +101,34 @@ public class BlockProtectionListener implements Listener {
 
         if (regions == null || regions.size() == 0) return;
 
-        Set<String> configRegions = plugin.getConfig()
+        Set<String> cfgRegions = plugin.getConfig()
                 .getConfigurationSection("regions")
                 .getKeys(false);
 
-        // ✅ ПРАВИЛЬНО
-        LocalPlayer lp = BukkitAdapter.adapt(player);
+        UUID uuid = p.getUniqueId();
 
         boolean checked = false;
         boolean allowed = false;
 
-        for (ProtectedRegion region : regions) {
+        for (ProtectedRegion r : regions) {
 
-            String id = region.getId();
-            if (!configRegions.contains(id)) continue;
+            String id = r.getId();
+            if (!cfgRegions.contains(id)) continue;
 
             checked = true;
 
-            // Владельцы и участники — можно
-            if (region.isOwner(lp) || region.isMember(lp)) {
+            // владельцы и участники
+            if (r.getOwners().contains(uuid) || r.getMembers().contains(uuid)) {
                 allowed = true;
                 break;
             }
 
-            boolean cfgAllowed = plugin.getConfig().getBoolean(
+            boolean cfgAllow = plugin.getConfig().getBoolean(
                     "regions." + id + "." + action,
                     false
             );
 
-            if (cfgAllowed) {
+            if (cfgAllow) {
                 allowed = true;
                 break;
             }
@@ -142,11 +136,11 @@ public class BlockProtectionListener implements Listener {
 
         if (checked && !allowed) {
             String msg = plugin.getConfig()
-                    .getString("messages." + action + "-blocked", "&cДействие запрещено.")
+                    .getString("messages." + action + "-blocked", "&cЗапрещено.")
                     .replace("&", "§");
 
-            player.sendMessage(msg);
-            event.setCancelled(true);
+            p.sendMessage(msg);
+            e.setCancelled(true);
         }
     }
 }
