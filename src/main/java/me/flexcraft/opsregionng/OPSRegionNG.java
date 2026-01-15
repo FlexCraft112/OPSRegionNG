@@ -10,6 +10,7 @@ public class OPSRegionNG extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
 
+        // регистрируем listener
         Bukkit.getPluginManager().registerEvents(
                 new WorldEditListener(this),
                 this
