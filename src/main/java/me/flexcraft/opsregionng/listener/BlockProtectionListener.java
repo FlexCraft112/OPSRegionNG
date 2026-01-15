@@ -9,6 +9,7 @@ import me.flexcraft.opsregionng.OPSRegionNG;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -27,72 +28,88 @@ public class BlockProtectionListener implements Listener {
 
     /* ===================== BREAK ===================== */
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (!isAllowed(player, "break")) {
-            deny(event, player, "messages.break-blocked");
+        if (isAllowed(player, "break")) {
+            event.setCancelled(false); // 🔥 ПЕРЕБИВАЕМ WorldGuard
+            return;
         }
+
+        deny(event, player, "messages.break-blocked");
     }
 
     /* ===================== PLACE ===================== */
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (!isAllowed(player, "place")) {
-            deny(event, player, "messages.place-blocked");
+        if (isAllowed(player, "place")) {
+            event.setCancelled(false);
+            return;
         }
+
+        deny(event, player, "messages.place-blocked");
     }
 
     /* ===================== BUCKETS ===================== */
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBucket(PlayerBucketEmptyEvent event) {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (!isAllowed(player, "place")) {
-            deny(event, player, "messages.place-blocked");
+        if (isAllowed(player, "place")) {
+            event.setCancelled(false);
+            return;
         }
+
+        deny(event, player, "messages.place-blocked");
     }
 
-    /* ===================== BOATS / MINECARTS / ARMOR ===================== */
+    /* ===================== BOATS / ARMOR / MINECART ===================== */
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityPlace(EntityPlaceEvent event) {
         Player player = event.getPlayer();
-        if (player == null) return;
-        if (hasBypass(player)) return;
+        if (player == null || hasBypass(player)) return;
 
-        if (!isAllowed(player, "place")) {
-            deny(event, player, "messages.place-blocked");
+        if (isAllowed(player, "place")) {
+            event.setCancelled(false);
+            return;
         }
+
+        deny(event, player, "messages.place-blocked");
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHanging(HangingPlaceEvent event) {
         Player player = event.getPlayer();
-        if (player == null) return;
-        if (hasBypass(player)) return;
+        if (player == null || hasBypass(player)) return;
 
-        if (!isAllowed(player, "place")) {
-            deny(event, player, "messages.place-blocked");
+        if (isAllowed(player, "place")) {
+            event.setCancelled(false);
+            return;
         }
+
+        deny(event, player, "messages.place-blocked");
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (!isAllowed(player, "place")) {
-            deny(event, player, "messages.place-blocked");
+        if (isAllowed(player, "place")) {
+            event.setCancelled(false);
+            return;
         }
+
+        deny(event, player, "messages.place-blocked");
     }
 
     /* ===================== CORE ===================== */
