@@ -1,6 +1,8 @@
 package me.flexcraft.opsregionng;
 
 import me.flexcraft.opsregionng.listener.WorldEditListener;
+import me.flexcraft.opsregionng.listener.BlockProtectionListener;
+
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -10,9 +12,15 @@ public class OPSRegionNG extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
 
-        // регистрируем listener
+        // WorldEdit запреты
         Bukkit.getPluginManager().registerEvents(
                 new WorldEditListener(this),
+                this
+        );
+
+        // Защита ломания / строительства
+        Bukkit.getPluginManager().registerEvents(
+                new BlockProtectionListener(this),
                 this
         );
 
