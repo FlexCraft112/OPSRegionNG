@@ -6,8 +6,8 @@ import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -30,7 +30,6 @@ public class BlockProtectionListener implements Listener {
     @EventHandler
     public void onBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-
         if (hasBypass(player)) return;
 
         if (!isAllowed(player, "break")) {
@@ -43,7 +42,6 @@ public class BlockProtectionListener implements Listener {
     @EventHandler
     public void onPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
-
         if (hasBypass(player)) return;
 
         if (!isAllowed(player, "place")) {
@@ -56,7 +54,6 @@ public class BlockProtectionListener implements Listener {
     @EventHandler
     public void onBucket(PlayerBucketEmptyEvent event) {
         Player player = event.getPlayer();
-
         if (hasBypass(player)) return;
 
         if (!isAllowed(player, "place")) {
@@ -68,8 +65,8 @@ public class BlockProtectionListener implements Listener {
 
     @EventHandler
     public void onEntityPlace(EntityPlaceEvent event) {
-        if (!(event.getPlayer() instanceof Player player)) return;
-
+        Player player = event.getPlayer();
+        if (player == null) return;
         if (hasBypass(player)) return;
 
         if (!isAllowed(player, "place")) {
@@ -81,7 +78,6 @@ public class BlockProtectionListener implements Listener {
     public void onHanging(HangingPlaceEvent event) {
         Player player = event.getPlayer();
         if (player == null) return;
-
         if (hasBypass(player)) return;
 
         if (!isAllowed(player, "place")) {
@@ -92,7 +88,6 @@ public class BlockProtectionListener implements Listener {
     @EventHandler
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
-
         if (hasBypass(player)) return;
 
         if (!isAllowed(player, "place")) {
@@ -127,10 +122,12 @@ public class BlockProtectionListener implements Listener {
         return perm != null && player.hasPermission(perm);
     }
 
-    private void deny(org.bukkit.event.Cancellable event, Player player, String msgKey) {
+    private void deny(Cancellable event, Player player, String key) {
         event.setCancelled(true);
-        player.sendMessage(plugin.getConfig()
-                .getString(msgKey, "&cЗапрещено.")
-                .replace("&", "§"));
+        player.sendMessage(
+                plugin.getConfig()
+                        .getString(key, "&cЗапрещено.")
+                        .replace("&", "§")
+        );
     }
 }
