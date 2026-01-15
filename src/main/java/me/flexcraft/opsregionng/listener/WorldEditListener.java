@@ -1,7 +1,7 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
@@ -27,18 +27,12 @@ public class WorldEditListener implements Listener {
     public void onCommand(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
 
-        // bypass
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) {
-            return;
-        }
+        if (bypass != null && player.hasPermission(bypass)) return;
 
-        String message = event.getMessage().toLowerCase();
+        String msg = event.getMessage().toLowerCase();
 
-        // ловим ВСЕ команды WorldEdit
-        if (!message.startsWith("//") && !message.startsWith("/we")) {
-            return;
-        }
+        if (!msg.startsWith("//") && !msg.startsWith("/we")) return;
 
         RegionManager manager = WorldGuard.getInstance()
                 .getPlatform()
@@ -51,14 +45,14 @@ public class WorldEditListener implements Listener {
                 BukkitAdapter.asBlockVector(player.getLocation())
         );
 
-        Set<String> configRegions = plugin.getConfig()
+        Set<String> regionKeys = plugin.getConfig()
                 .getConfigurationSection("regions")
                 .getKeys(false);
 
         for (ProtectedRegion region : regions) {
             String id = region.getId();
 
-            if (!configRegions.contains(id)) continue;
+            if (!regionKeys.contains(id)) continue;
 
             boolean allowed = plugin.getConfig().getBoolean(
                     "regions." + id + ".worldedit",
@@ -66,12 +60,12 @@ public class WorldEditListener implements Listener {
             );
 
             if (!allowed) {
-                String msg = plugin.getConfig()
-                        .getString("messages.worldedit-blocked",
-                                "&cВы не можете использовать WorldEdit в этом регионе.")
-                        .replace("&", "§");
-
-                player.sendMessage(msg);
+                player.sendMessage(
+                        plugin.getConfig()
+                                .getString("messages.worldedit-blocked",
+                                        "&cВы не можете использовать WorldEdit в этом регионе.")
+                                .replace("&", "§")
+                );
                 event.setCancelled(true);
                 return;
             }
