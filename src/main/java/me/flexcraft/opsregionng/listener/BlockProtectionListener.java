@@ -6,6 +6,7 @@ import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.flexcraft.opsregionng.OPSRegionNG;
 
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
@@ -26,35 +27,57 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* ================= BREAK ================= */
+    /* ================= BREAK (SURVIVAL) ================= */
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
-        handle(event.getPlayer(), event, "break");
+        if (!isAllowed(event.getPlayer(), "break")) {
+            deny(event.getPlayer(), event, "break");
+        }
+    }
+
+    /* ================= BREAK (CREATIVE HAND FIX) ================= */
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onCreativeBreak(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getClickedBlock() == null) return;
+        if (event.getAction() != Action.LEFT_CLICK_BLOCK) return;
+
+        Player player = event.getPlayer();
+        if (player.getGameMode() != GameMode.CREATIVE) return;
+
+        if (!isAllowed(player, "break")) {
+            deny(player, event, "break");
+        }
     }
 
     /* ================= PLACE ================= */
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
-        handle(event.getPlayer(), event, "place");
+        if (!isAllowed(event.getPlayer(), "place")) {
+            deny(event.getPlayer(), event, "place");
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBucket(PlayerBucketEmptyEvent event) {
-        handle(event.getPlayer(), event, "place");
+        if (!isAllowed(event.getPlayer(), "place")) {
+            deny(event.getPlayer(), event, "place");
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityPlace(EntityPlaceEvent event) {
-        if (event.getPlayer() != null) {
-            handle(event.getPlayer(), event, "place");
+        if (event.getPlayer() != null && !isAllowed(event.getPlayer(), "place")) {
+            deny(event.getPlayer(), event, "place");
         }
     }
 
-    /* ================= ITEMS ================= */
+    /* ================= ITEMS (boats, armorstand etc) ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (event.getItem() == null) return;
@@ -69,16 +92,18 @@ public class BlockProtectionListener implements Listener {
             m.name().contains("ITEM_FRAME") ||
             m.name().contains("SPAWN_EGG")
         ) {
-            handle(event.getPlayer(), event, "place");
+            if (!isAllowed(event.getPlayer(), "place")) {
+                deny(event.getPlayer(), event, "place");
+            }
         }
     }
 
-    /* ================= CORE ================= */
+    /* ================= CORE LOGIC ================= */
 
-    private void handle(Player player, Cancellable event, String action) {
+    private boolean isAllowed(Player player, String action) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) return;
+        if (bypass != null && player.hasPermission(bypass)) return true;
 
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
@@ -86,13 +111,12 @@ public class BlockProtectionListener implements Listener {
                 .get(BukkitAdapter.adapt(player.getWorld()))
                 .getApplicableRegions(BukkitAdapter.asBlockVector(player.getLocation()));
 
-        if (regions == null || regions.size() == 0) return;
+        if (regions == null || regions.size() == 0) return true;
 
         Set<String> cfgRegions = plugin.getConfig()
                 .getConfigurationSection("regions")
                 .getKeys(false);
 
-        boolean allowedSomewhere = false;
         boolean checked = false;
 
         for (ProtectedRegion region : regions) {
@@ -105,18 +129,16 @@ public class BlockProtectionListener implements Listener {
                     "regions." + id + "." + action, false
             );
 
-            if (allowed) {
-                allowedSomewhere = true;
-                break;
-            }
+            if (allowed) return true; // 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ
         }
 
-        if (!checked || allowedSomewhere) return;
+        return !checked;
+    }
 
+    private void deny(Player player, Cancellable event, String action) {
         String msg = plugin.getConfig()
                 .getString("messages." + action + "-blocked", "&cЗапрещено.")
                 .replace("&", "§");
-
         player.sendMessage(msg);
         event.setCancelled(true);
     }
