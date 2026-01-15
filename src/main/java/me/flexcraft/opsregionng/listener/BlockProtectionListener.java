@@ -26,15 +26,15 @@ public class BlockProtectionListener implements Listener {
 
     @EventHandler
     public void onBreak(BlockBreakEvent event) {
-        handle(event.getPlayer(), event, true);
+        handle(event.getPlayer(), event, event.getBlock().getLocation(), true);
     }
 
     @EventHandler
     public void onPlace(BlockPlaceEvent event) {
-        handle(event.getPlayer(), event, false);
+        handle(event.getPlayer(), event, event.getBlock().getLocation(), false);
     }
 
-    private void handle(Player player, Cancellable event, boolean breaking) {
+    private void handle(Player player, Cancellable event, org.bukkit.Location loc, boolean breaking) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
         if (bypass != null && player.hasPermission(bypass)) return;
@@ -42,10 +42,8 @@ public class BlockProtectionListener implements Listener {
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
-                .get(BukkitAdapter.adapt(player.getWorld()))
-                .getApplicableRegions(
-                        BukkitAdapter.asBlockVector(player.getLocation())
-                );
+                .get(BukkitAdapter.adapt(loc.getWorld()))
+                .getApplicableRegions(BukkitAdapter.asBlockVector(loc));
 
         Set<String> configRegions = plugin.getConfig()
                 .getConfigurationSection("regions")
@@ -72,7 +70,6 @@ public class BlockProtectionListener implements Listener {
             }
         }
 
-        // если ни один регион не разрешил
         if (checkedAny && !allowedSomewhere) {
             String msgKey = breaking
                     ? "messages.break-blocked"
