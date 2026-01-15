@@ -26,38 +26,35 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* ================= ЛОМАНИЕ ================= */
+    /* ================= BREAK ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         handle(event.getPlayer(), event, "break");
     }
 
-    /* ================= СТРОИТЕЛЬСТВО ================= */
+    /* ================= PLACE ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         handle(event.getPlayer(), event, "place");
     }
 
-    /* ================= ВЁДРА ================= */
-
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBucket(PlayerBucketEmptyEvent event) {
         handle(event.getPlayer(), event, "place");
     }
 
-    /* ================= ENTITY (лодки, стойки, рамки, вагонетки) ================= */
-
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityPlace(EntityPlaceEvent event) {
-        if (event.getPlayer() == null) return;
-        handle(event.getPlayer(), event, "place");
+        if (event.getPlayer() != null) {
+            handle(event.getPlayer(), event, "place");
+        }
     }
 
-    /* ================= ПРЕДМЕТЫ (яйца, рафты, лодки и т.п.) ================= */
+    /* ================= ITEMS ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (event.getItem() == null) return;
@@ -76,7 +73,7 @@ public class BlockProtectionListener implements Listener {
         }
     }
 
-    /* ================= ОБЩАЯ ЛОГИКА ================= */
+    /* ================= CORE ================= */
 
     private void handle(Player player, Cancellable event, String action) {
 
@@ -89,30 +86,38 @@ public class BlockProtectionListener implements Listener {
                 .get(BukkitAdapter.adapt(player.getWorld()))
                 .getApplicableRegions(BukkitAdapter.asBlockVector(player.getLocation()));
 
-        if (regions == null) return;
+        if (regions == null || regions.size() == 0) return;
 
         Set<String> cfgRegions = plugin.getConfig()
                 .getConfigurationSection("regions")
                 .getKeys(false);
 
-        for (ProtectedRegion region : regions) {
+        boolean allowedSomewhere = false;
+        boolean checked = false;
 
+        for (ProtectedRegion region : regions) {
             String id = region.getId();
             if (!cfgRegions.contains(id)) continue;
+
+            checked = true;
 
             boolean allowed = plugin.getConfig().getBoolean(
                     "regions." + id + "." + action, false
             );
 
-            if (allowed) return;
-
-            String msg = plugin.getConfig()
-                    .getString("messages." + action + "-blocked", "&cЗапрещено.")
-                    .replace("&", "§");
-
-            player.sendMessage(msg);
-            event.setCancelled(true);
-            return;
+            if (allowed) {
+                allowedSomewhere = true;
+                break;
+            }
         }
+
+        if (!checked || allowedSomewhere) return;
+
+        String msg = plugin.getConfig()
+                .getString("messages." + action + "-blocked", "&cЗапрещено.")
+                .replace("&", "§");
+
+        player.sendMessage(msg);
+        event.setCancelled(true);
     }
 }
