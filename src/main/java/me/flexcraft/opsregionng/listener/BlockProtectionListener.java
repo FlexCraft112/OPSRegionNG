@@ -1,14 +1,15 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -24,12 +25,12 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onBreak(BlockBreakEvent event) {
         handle(event.getPlayer(), event, event.getBlock().getLocation(), true);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onPlace(BlockPlaceEvent event) {
         handle(event.getPlayer(), event, event.getBlock().getLocation(), false);
     }
@@ -37,7 +38,10 @@ public class BlockProtectionListener implements Listener {
     private void handle(Player player, Cancellable event, org.bukkit.Location loc, boolean breaking) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) return;
+        if (bypass != null && player.hasPermission(bypass)) {
+            event.setCancelled(false);
+            return;
+        }
 
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
@@ -49,28 +53,33 @@ public class BlockProtectionListener implements Listener {
                 .getConfigurationSection("regions")
                 .getKeys(false);
 
-        boolean allowedSomewhere = false;
-        boolean checkedAny = false;
+        boolean checked = false;
+        boolean allowed = false;
 
         for (ProtectedRegion region : regions) {
             String id = region.getId();
 
             if (!configRegions.contains(id)) continue;
 
-            checkedAny = true;
+            checked = true;
 
-            boolean allowed = plugin.getConfig().getBoolean(
+            boolean allowHere = plugin.getConfig().getBoolean(
                     "regions." + id + (breaking ? ".break" : ".place"),
                     false
             );
 
-            if (allowed) {
-                allowedSomewhere = true;
+            if (allowHere) {
+                allowed = true;
                 break;
             }
         }
 
-        if (checkedAny && !allowedSomewhere) {
+        if (checked && allowed) {
+            event.setCancelled(false);
+            return;
+        }
+
+        if (checked) {
             String msgKey = breaking
                     ? "messages.break-blocked"
                     : "messages.place-blocked";
