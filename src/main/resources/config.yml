@@ -1,0 +1,15 @@
+# Плагин разработан командой проекта FlexCraft - Хэлфи ツ
+# если обнаружили ошибку (Я в Discord @helfyyt)
+# Наш официальный Discord проекта FlexCraft - http://discord.gg/KSdY9z4Fb9
+
+# Регионы WorldGuard, где запрещён WorldEdit
+protected-regions:
+  - zona
+  - spawn
+
+# Сообщение игроку
+messages:
+  blocked: "&cВы не можете использовать WorldEdit в этом регионе."
+
+# Права обхода
+bypass-permission: opsregion.bypass
