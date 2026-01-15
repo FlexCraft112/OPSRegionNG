@@ -4,17 +4,17 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-
 import me.flexcraft.opsregionng.OPSRegionNG;
 
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.hanging.HangingPlaceEvent;
+import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
-import org.bukkit.event.player.PlayerInteractAtEntityEvent;
-import org.bukkit.event.vehicle.VehicleCreateEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 
 import java.util.Set;
 
@@ -28,56 +28,51 @@ public class BlockProtectionListener implements Listener {
 
     /* ================= ЛОМАНИЕ ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onBreak(BlockBreakEvent event) {
         handle(event.getPlayer(), event, "break");
     }
 
     /* ================= СТРОИТЕЛЬСТВО ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlace(BlockPlaceEvent event) {
         handle(event.getPlayer(), event, "place");
     }
 
     /* ================= ВЁДРА ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onBucket(PlayerBucketEmptyEvent event) {
         handle(event.getPlayer(), event, "place");
     }
 
-    /* ================= СТОЙКИ / СУЩНОСТИ ================= */
+    /* ================= ENTITY (лодки, стойки, рамки, вагонетки) ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onEntityInteract(PlayerInteractAtEntityEvent event) {
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onEntityPlace(EntityPlaceEvent event) {
+        if (event.getPlayer() == null) return;
         handle(event.getPlayer(), event, "place");
     }
 
-    /* ================= РАМКИ / КАРТИНЫ ================= */
+    /* ================= ПРЕДМЕТЫ (яйца, рафты, лодки и т.п.) ================= */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onHanging(HangingPlaceEvent event) {
-        if (event.getPlayer() != null) {
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInteract(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getItem() == null) return;
+
+        Material m = event.getItem().getType();
+
+        if (
+            m.name().contains("BOAT") ||
+            m.name().contains("RAFT") ||
+            m.name().contains("MINECART") ||
+            m == Material.ARMOR_STAND ||
+            m.name().contains("ITEM_FRAME") ||
+            m.name().contains("SPAWN_EGG")
+        ) {
             handle(event.getPlayer(), event, "place");
-        }
-    }
-
-    /* ================= ЛОДКИ / ВАГОНЕТКИ ================= */
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onVehicleCreate(VehicleCreateEvent event) {
-        if (event.getVehicle().getLocation().getWorld() == null) return;
-
-        Player player = event.getVehicle().getPassengers()
-                .stream()
-                .filter(p -> p instanceof Player)
-                .map(p -> (Player) p)
-                .findFirst()
-                .orElse(null);
-
-        if (player != null) {
-            handle(player, event, "place");
         }
     }
 
