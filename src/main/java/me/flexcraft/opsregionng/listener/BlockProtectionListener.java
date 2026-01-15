@@ -6,18 +6,16 @@ import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.*;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
+import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
-
-import java.util.Set;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 
 public class BlockProtectionListener implements Listener {
 
@@ -27,119 +25,112 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* ================= BREAK (SURVIVAL) ================= */
+    /* ===================== BREAK ===================== */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler
     public void onBreak(BlockBreakEvent event) {
-        if (!isAllowed(event.getPlayer(), "break")) {
-            deny(event.getPlayer(), event, "break");
-        }
-    }
-
-    /* ================= BREAK (CREATIVE HAND FIX) ================= */
-
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onCreativeBreak(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (event.getClickedBlock() == null) return;
-        if (event.getAction() != Action.LEFT_CLICK_BLOCK) return;
-
         Player player = event.getPlayer();
-        if (player.getGameMode() != GameMode.CREATIVE) return;
+
+        if (hasBypass(player)) return;
 
         if (!isAllowed(player, "break")) {
-            deny(player, event, "break");
+            deny(event, player, "messages.break-blocked");
         }
     }
 
-    /* ================= PLACE ================= */
+    /* ===================== PLACE ===================== */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler
     public void onPlace(BlockPlaceEvent event) {
-        if (!isAllowed(event.getPlayer(), "place")) {
-            deny(event.getPlayer(), event, "place");
+        Player player = event.getPlayer();
+
+        if (hasBypass(player)) return;
+
+        if (!isAllowed(player, "place")) {
+            deny(event, player, "messages.place-blocked");
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    /* ===================== BUCKETS ===================== */
+
+    @EventHandler
     public void onBucket(PlayerBucketEmptyEvent event) {
-        if (!isAllowed(event.getPlayer(), "place")) {
-            deny(event.getPlayer(), event, "place");
+        Player player = event.getPlayer();
+
+        if (hasBypass(player)) return;
+
+        if (!isAllowed(player, "place")) {
+            deny(event, player, "messages.place-blocked");
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    /* ===================== BOATS / MINECARTS / ARMOR ===================== */
+
+    @EventHandler
     public void onEntityPlace(EntityPlaceEvent event) {
-        if (event.getPlayer() != null && !isAllowed(event.getPlayer(), "place")) {
-            deny(event.getPlayer(), event, "place");
+        if (!(event.getPlayer() instanceof Player player)) return;
+
+        if (hasBypass(player)) return;
+
+        if (!isAllowed(player, "place")) {
+            deny(event, player, "messages.place-blocked");
         }
     }
 
-    /* ================= ITEMS (boats, armorstand etc) ================= */
+    @EventHandler
+    public void onHanging(HangingPlaceEvent event) {
+        Player player = event.getPlayer();
+        if (player == null) return;
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (event.getItem() == null) return;
+        if (hasBypass(player)) return;
 
-        Material m = event.getItem().getType();
-
-        if (
-            m.name().contains("BOAT") ||
-            m.name().contains("RAFT") ||
-            m.name().contains("MINECART") ||
-            m == Material.ARMOR_STAND ||
-            m.name().contains("ITEM_FRAME") ||
-            m.name().contains("SPAWN_EGG")
-        ) {
-            if (!isAllowed(event.getPlayer(), "place")) {
-                deny(event.getPlayer(), event, "place");
-            }
+        if (!isAllowed(player, "place")) {
+            deny(event, player, "messages.place-blocked");
         }
     }
 
-    /* ================= CORE LOGIC ================= */
+    @EventHandler
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        Player player = event.getPlayer();
+
+        if (hasBypass(player)) return;
+
+        if (!isAllowed(player, "place")) {
+            deny(event, player, "messages.place-blocked");
+        }
+    }
+
+    /* ===================== CORE ===================== */
 
     private boolean isAllowed(Player player, String action) {
-
-        String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) return true;
-
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
                 .get(BukkitAdapter.adapt(player.getWorld()))
                 .getApplicableRegions(BukkitAdapter.asBlockVector(player.getLocation()));
 
-        if (regions == null || regions.size() == 0) return true;
-
-        Set<String> cfgRegions = plugin.getConfig()
-                .getConfigurationSection("regions")
-                .getKeys(false);
-
-        boolean checked = false;
-
         for (ProtectedRegion region : regions) {
             String id = region.getId();
-            if (!cfgRegions.contains(id)) continue;
 
-            checked = true;
+            if (!plugin.getConfig().contains("regions." + id)) continue;
 
-            boolean allowed = plugin.getConfig().getBoolean(
-                    "regions." + id + "." + action, false
-            );
+            boolean allowed = plugin.getConfig()
+                    .getBoolean("regions." + id + "." + action, false);
 
-            if (allowed) return true; // 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ
+            if (!allowed) return false;
         }
-
-        return !checked;
+        return true;
     }
 
-    private void deny(Player player, Cancellable event, String action) {
-        String msg = plugin.getConfig()
-                .getString("messages." + action + "-blocked", "&cЗапрещено.")
-                .replace("&", "§");
-        player.sendMessage(msg);
+    private boolean hasBypass(Player player) {
+        String perm = plugin.getConfig().getString("bypass-permission");
+        return perm != null && player.hasPermission(perm);
+    }
+
+    private void deny(org.bukkit.event.Cancellable event, Player player, String msgKey) {
         event.setCancelled(true);
+        player.sendMessage(plugin.getConfig()
+                .getString(msgKey, "&cЗапрещено.")
+                .replace("&", "§"));
     }
 }
