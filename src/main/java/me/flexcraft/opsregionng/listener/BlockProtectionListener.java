@@ -1,12 +1,9 @@
 package me.flexcraft.opsregionng.listener;
 
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.LocalPlayer;
-import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
@@ -40,46 +37,43 @@ public class BlockProtectionListener implements Listener {
         String bypass = plugin.getConfig().getString("bypass-permission");
         if (bypass != null && player.hasPermission(bypass)) return;
 
-        RegionManager manager = WorldGuard.getInstance()
+        ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
-                .get(BukkitAdapter.adapt(player.getWorld()));
+                .get(BukkitAdapter.adapt(player.getWorld()))
+                .getApplicableRegions(
+                        BukkitAdapter.asBlockVector(player.getLocation())
+                );
 
-        if (manager == null) return;
-
-        ApplicableRegionSet regions = manager.getApplicableRegions(
-                BukkitAdapter.adapt(player.getLocation()).toVector().toBlockPoint()
-        );
-
-        LocalPlayer wgPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
+        boolean allow = false;
+        boolean deny = false;
 
         for (ProtectedRegion region : regions) {
 
-            String path = "regions." + region.getId();
-            if (!plugin.getConfig().isConfigurationSection(path)) continue;
-
-            // владельцы и участники WorldGuard — всегда можно
-            if (region.isOwner(wgPlayer) || region.isMember(wgPlayer)) return;
+            String id = region.getId();
+            if (!plugin.getConfig().isConfigurationSection("regions." + id)) continue;
 
             boolean allowed = plugin.getConfig().getBoolean(
-                    path + (breaking ? ".break" : ".place"),
+                    "regions." + id + (breaking ? ".break" : ".place"),
                     false
             );
 
-            if (!allowed) {
-                String msg = plugin.getConfig()
-                        .getString(
-                                breaking
-                                        ? "messages.break-blocked"
-                                        : "messages.place-blocked",
-                                "&cДействие запрещено."
-                        )
-                        .replace("&", "§");
-
-                player.sendMessage(msg);
-                event.setCancelled(true);
-                return;
+            if (allowed) {
+                allow = true;
+            } else {
+                deny = true;
             }
+        }
+
+        if (allow) return;
+
+        if (deny) {
+            String msg = plugin.getConfig()
+                    .getString(breaking ? "messages.break-blocked" : "messages.place-blocked")
+                    .replace("&", "§");
+
+            player.sendMessage(msg);
+            event.setCancelled(true);
         }
     }
 }
