@@ -1,9 +1,9 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
@@ -34,8 +34,11 @@ public class BlockProtectionListener implements Listener {
 
     private void handle(Player player, Cancellable event, boolean breaking) {
 
+        // bypass
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) return;
+        if (bypass != null && player.hasPermission(bypass)) {
+            return;
+        }
 
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
@@ -45,31 +48,37 @@ public class BlockProtectionListener implements Listener {
                         BukkitAdapter.asBlockVector(player.getLocation())
                 );
 
-        boolean allow = false;
-        boolean deny = false;
+        boolean regionFound = false;
 
         for (ProtectedRegion region : regions) {
 
             String id = region.getId();
-            if (!plugin.getConfig().isConfigurationSection("regions." + id)) continue;
+
+            // если регион не описан в конфиге — игнор
+            if (!plugin.getConfig().isConfigurationSection("regions." + id)) {
+                continue;
+            }
+
+            regionFound = true;
 
             boolean allowed = plugin.getConfig().getBoolean(
                     "regions." + id + (breaking ? ".break" : ".place"),
                     false
             );
 
+            // 🔥 ЕСЛИ ХОТЯ БЫ ОДИН РЕГИОН РАЗРЕШАЕТ — РАЗРЕШАЕМ
             if (allowed) {
-                allow = true;
-            } else {
-                deny = true;
+                return;
             }
         }
 
-        if (allow) return;
-
-        if (deny) {
+        // ❌ если регион найден, но ни один не разрешил
+        if (regionFound) {
             String msg = plugin.getConfig()
-                    .getString(breaking ? "messages.break-blocked" : "messages.place-blocked")
+                    .getString(
+                            breaking ? "messages.break-blocked" : "messages.place-blocked",
+                            "&cДействие запрещено."
+                    )
                     .replace("&", "§");
 
             player.sendMessage(msg);
