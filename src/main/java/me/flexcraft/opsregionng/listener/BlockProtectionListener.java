@@ -7,16 +7,14 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.Cancellable;
+import org.bukkit.event.*;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.vehicle.VehicleCreateEvent;
 
 import java.util.Set;
 
@@ -30,41 +28,56 @@ public class BlockProtectionListener implements Listener {
 
     /* ================= ЛОМАНИЕ ================= */
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         handle(event.getPlayer(), event, "break");
     }
 
     /* ================= СТРОИТЕЛЬСТВО ================= */
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         handle(event.getPlayer(), event, "place");
     }
 
     /* ================= ВЁДРА ================= */
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBucket(PlayerBucketEmptyEvent event) {
         handle(event.getPlayer(), event, "place");
     }
 
-    /* ================= ЛОДКИ / СТОЙКИ / РАМКИ ================= */
+    /* ================= СТОЙКИ / СУЩНОСТИ ================= */
 
-    @EventHandler
-    public void onInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (event.getItem() == null) return;
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityInteract(PlayerInteractAtEntityEvent event) {
+        handle(event.getPlayer(), event, "place");
+    }
 
-        Material type = event.getItem().getType();
+    /* ================= РАМКИ / КАРТИНЫ ================= */
 
-        if (
-            type.name().contains("BOAT") ||
-            type.name().contains("MINECART") ||
-            type == Material.ARMOR_STAND ||
-            type.name().contains("ITEM_FRAME")
-        ) {
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHanging(HangingPlaceEvent event) {
+        if (event.getPlayer() != null) {
             handle(event.getPlayer(), event, "place");
+        }
+    }
+
+    /* ================= ЛОДКИ / ВАГОНЕТКИ ================= */
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onVehicleCreate(VehicleCreateEvent event) {
+        if (event.getVehicle().getLocation().getWorld() == null) return;
+
+        Player player = event.getVehicle().getPassengers()
+                .stream()
+                .filter(p -> p instanceof Player)
+                .map(p -> (Player) p)
+                .findFirst()
+                .orElse(null);
+
+        if (player != null) {
+            handle(player, event, "place");
         }
     }
 
