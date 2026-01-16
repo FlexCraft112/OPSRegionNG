@@ -1,5 +1,6 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
@@ -8,8 +9,8 @@ import com.sk89q.worldguard.protection.regions.RegionQuery;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.block.*;
 import org.bukkit.event.player.*;
@@ -32,47 +33,48 @@ public class BlockProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent e) {
-        handle(e.getPlayer(), e.getBlock(), e, true);
+        check(e.getPlayer(), e.getBlock(), e, true);
     }
 
     /* ================= BLOCK PLACE ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
-        handle(e.getPlayer(), e.getBlock(), e, false);
+        check(e.getPlayer(), e.getBlock(), e, false);
     }
 
     /* ================= BUCKETS ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBucket(PlayerBucketEmptyEvent e) {
-        handle(e.getPlayer(), e.getBlock(), e, false);
+        check(e.getPlayer(), e.getBlock(), e, false);
     }
 
-    /* ================= ENTITIES (boats, stands, frames) ================= */
+    /* ================= ENTITIES ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntity(PlayerInteractEntityEvent e) {
-        handle(e.getPlayer(), e.getRightClicked().getLocation().getBlock(), e, false);
+        check(e.getPlayer(), e.getRightClicked().getLocation().getBlock(), e, false);
     }
 
     /* ================= PAINTINGS ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onHanging(HangingPlaceEvent e) {
-        handle(e.getPlayer(), e.getBlock(), e, false);
+        check(e.getPlayer(), e.getBlock(), e, false);
     }
 
     /* ================= CORE ================= */
 
-    private void handle(Player player, Block block, Cancellable event, boolean breaking) {
+    private void check(Player player, Block block, Cancellable event, boolean breaking) {
 
         if (player.hasPermission(plugin.getConfig().getString("bypass-permission"))) return;
 
-        ApplicableRegionSet regions =
-                query.getApplicableRegions(block.getLocation());
+        ApplicableRegionSet regions = query.getApplicableRegions(
+                BukkitAdapter.adapt(block.getLocation())
+        );
 
-        if (regions.isEmpty()) return;
+        if (!regions.iterator().hasNext()) return;
 
         Set<String> cfgRegions =
                 plugin.getConfig().getConfigurationSection("regions").getKeys(false);
@@ -89,9 +91,11 @@ public class BlockProtectionListener implements Listener {
 
             if (allowed) return;
 
-            player.sendMessage(plugin.getConfig()
-                    .getString(breaking ? "messages.break-blocked" : "messages.place-blocked")
-                    .replace("&", "§"));
+            player.sendMessage(
+                    plugin.getConfig()
+                            .getString(breaking ? "messages.break-blocked" : "messages.place-blocked")
+                            .replace("&", "§")
+            );
 
             event.setCancelled(true);
             return;
