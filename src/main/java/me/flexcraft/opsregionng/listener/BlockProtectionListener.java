@@ -1,95 +1,45 @@
 package me.flexcraft.opsregionng.listener;
 
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.flexcraft.opsregionng.OPSRegionNG;
-import org.bukkit.Location;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.Cancellable;
-import org.bukkit.event.hanging.HangingPlaceEvent;
-import org.bukkit.event.player.PlayerBucketEmptyEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 
-import java.util.Comparator;
-import java.util.Set;
-
-public class ExtraProtectionListener implements Listener {
+public class BlockProtectionListener implements Listener {
 
     private final OPSRegionNG plugin;
 
-    public ExtraProtectionListener(OPSRegionNG plugin) {
+    public BlockProtectionListener(OPSRegionNG plugin) {
         this.plugin = plugin;
     }
 
-    /* ================= ВЁДРА ================= */
-
-    @EventHandler
-    public void onBucket(PlayerBucketEmptyEvent event) {
-        if (!check(event.getPlayer(), event.getBlock().getLocation())) {
-            event.setCancelled(true);
+    @EventHandler(ignoreCancelled = true)
+    public void onBreak(BlockBreakEvent e) {
+        if (!check(e.getPlayer(), "break")) {
+            e.setCancelled(true);
+            e.getPlayer().sendMessage(color(
+                plugin.getConfig().getString("messages.break-blocked")
+            ));
         }
     }
 
-    /* ================= СУЩНОСТИ (лодки, стойки, рамки и т.п.) ================= */
-
-    @EventHandler
-    public void onEntityPlace(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (!event.hasItem()) return;
-
-        switch (event.getMaterial()) {
-            case ARMOR_STAND:
-            case ITEM_FRAME:
-            case GLOW_ITEM_FRAME:
-            case PAINTING:
-            case OAK_BOAT:
-            case SPRUCE_BOAT:
-            case BIRCH_BOAT:
-            case JUNGLE_BOAT:
-            case ACACIA_BOAT:
-            case DARK_OAK_BOAT:
-            case MANGROVE_BOAT:
-            case BAMBOO_RAFT:
-            case OAK_CHEST_BOAT:
-            case SPRUCE_CHEST_BOAT:
-            case BIRCH_CHEST_BOAT:
-            case JUNGLE_CHEST_BOAT:
-            case ACACIA_CHEST_BOAT:
-            case DARK_OAK_CHEST_BOAT:
-            case MANGROVE_CHEST_BOAT:
-            case BAMBOO_CHEST_RAFT:
-            case MINECART:
-            case CHEST_MINECART:
-            case HOPPER_MINECART:
-            case TNT_MINECART:
-            case FURNACE_MINECART:
-                if (!check(event.getPlayer(), event.getPlayer().getLocation())) {
-                    event.setCancelled(true);
-                }
-                break;
-            default:
-                break;
+    @EventHandler(ignoreCancelled = true)
+    public void onPlace(BlockPlaceEvent e) {
+        if (!check(e.getPlayer(), "place")) {
+            e.setCancelled(true);
+            e.getPlayer().sendMessage(color(
+                plugin.getConfig().getString("messages.place-blocked")
+            ));
         }
     }
 
-    /* ================= КАРТИНЫ / РАМКИ ================= */
-
-    @EventHandler
-    public void onHanging(HangingPlaceEvent event) {
-        if (event.getPlayer() == null) return;
-        if (!check(event.getPlayer(), event.getEntity().getLocation())) {
-            event.setCancelled(true);
-        }
-    }
-
-    /* ================= ОБЩАЯ ПРОВЕРКА ================= */
-
-    private boolean check(Player player, Location loc) {
+    private boolean check(Player player, String action) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
         if (bypass != null && player.hasPermission(bypass)) return true;
@@ -97,25 +47,23 @@ public class ExtraProtectionListener implements Listener {
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
-                .get(BukkitAdapter.adapt(loc.getWorld()))
-                .getApplicableRegions(BukkitAdapter.asBlockVector(loc));
+                .get(BukkitAdapter.adapt(player.getWorld()))
+                .getApplicableRegions(BukkitAdapter.asBlockVector(player.getLocation()));
 
-        if (regions == null || regions.size() == 0) return true;
+        for (ProtectedRegion region : regions) {
+            String id = region.getId();
 
-        Set<String> cfgRegions = plugin.getConfig()
-                .getConfigurationSection("regions")
-                .getKeys(false);
+            if (!plugin.getConfig().contains("regions." + id)) continue;
 
-        ProtectedRegion region = regions.getRegions().stream()
-                .filter(r -> cfgRegions.contains(r.getId()))
-                .max(Comparator.comparingInt(ProtectedRegion::getPriority))
-                .orElse(null);
+            return plugin.getConfig().getBoolean(
+                    "regions." + id + "." + action,
+                    false
+            );
+        }
+        return true; // вне регионов — разрешено
+    }
 
-        if (region == null) return true;
-
-        return plugin.getConfig().getBoolean(
-                "regions." + region.getId() + ".place",
-                false
-        );
+    private String color(String s) {
+        return s == null ? "" : s.replace("&", "§");
     }
 }
