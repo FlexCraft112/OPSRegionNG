@@ -7,16 +7,16 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.flexcraft.opsregionng.OPSRegionNG;
 
 import org.bukkit.entity.Player;
-import org.bukkit.event.Cancellable;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
+import org.bukkit.event.*;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+
+import java.util.Comparator;
+import java.util.Optional;
 
 public class BlockProtectionListener implements Listener {
 
@@ -26,136 +26,78 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* ===================== BREAK ===================== */
+    /* ================= BREAK ================= */
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBreak(BlockBreakEvent event) {
-        Player player = event.getPlayer();
-        if (hasBypass(player)) return;
-
-        if (isExplicitlyAllowed(player, "break")) {
-            event.setCancelled(false);
-            return;
-        }
-
-        deny(event, player, "messages.break-blocked");
+    public void onBreak(BlockBreakEvent e) {
+        if (hasBypass(e.getPlayer())) return;
+        handle(e, e.getPlayer(), "break", "messages.break-blocked");
     }
 
-    /* ===================== PLACE ===================== */
+    /* ================= PLACE ================= */
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onPlace(BlockPlaceEvent event) {
-        Player player = event.getPlayer();
-        if (hasBypass(player)) return;
-
-        if (isExplicitlyAllowed(player, "place")) {
-            event.setCancelled(false);
-            return;
-        }
-
-        deny(event, player, "messages.place-blocked");
-    }
-
-    /* ===================== BUCKETS ===================== */
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBucket(PlayerBucketEmptyEvent event) {
-        Player player = event.getPlayer();
-        if (hasBypass(player)) return;
-
-        if (isExplicitlyAllowed(player, "place")) {
-            event.setCancelled(false);
-            return;
-        }
-
-        deny(event, player, "messages.place-blocked");
-    }
-
-    /* ===================== ENTITIES (boats, armor, minecart) ===================== */
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onEntityPlace(EntityPlaceEvent event) {
-        Player player = event.getPlayer();
-        if (player == null || hasBypass(player)) return;
-
-        if (isExplicitlyAllowed(player, "place")) {
-            event.setCancelled(false);
-            return;
-        }
-
-        deny(event, player, "messages.place-blocked");
+    public void onPlace(BlockPlaceEvent e) {
+        if (hasBypass(e.getPlayer())) return;
+        handle(e, e.getPlayer(), "place", "messages.place-blocked");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onHanging(HangingPlaceEvent event) {
-        Player player = event.getPlayer();
-        if (player == null || hasBypass(player)) return;
-
-        if (isExplicitlyAllowed(player, "place")) {
-            event.setCancelled(false);
-            return;
-        }
-
-        deny(event, player, "messages.place-blocked");
+    public void onBucket(PlayerBucketEmptyEvent e) {
+        if (hasBypass(e.getPlayer())) return;
+        handle(e, e.getPlayer(), "place", "messages.place-blocked");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onInteractEntity(PlayerInteractEntityEvent event) {
-        Player player = event.getPlayer();
-        if (hasBypass(player)) return;
-
-        if (isExplicitlyAllowed(player, "place")) {
-            event.setCancelled(false);
-            return;
-        }
-
-        deny(event, player, "messages.place-blocked");
+    public void onEntity(EntityPlaceEvent e) {
+        if (e.getPlayer() == null || hasBypass(e.getPlayer())) return;
+        handle(e, e.getPlayer(), "place", "messages.place-blocked");
     }
 
-    /* ===================== CORE LOGIC ===================== */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHanging(HangingPlaceEvent e) {
+        if (e.getPlayer() == null || hasBypass(e.getPlayer())) return;
+        handle(e, e.getPlayer(), "place", "messages.place-blocked");
+    }
 
-    /**
-     * ГЛАВНОЕ:
-     * Если ХОТЯ БЫ ОДИН регион из конфига разрешает действие — РАЗРЕШАЕМ
-     */
-    private boolean isExplicitlyAllowed(Player player, String action) {
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onInteract(PlayerInteractEntityEvent e) {
+        if (hasBypass(e.getPlayer())) return;
+        handle(e, e.getPlayer(), "place", "messages.place-blocked");
+    }
+
+    /* ================= CORE ================= */
+
+    private void handle(Cancellable event, Player player, String action, String messageKey) {
+
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
                 .get(BukkitAdapter.adapt(player.getWorld()))
                 .getApplicableRegions(BukkitAdapter.asBlockVector(player.getLocation()));
 
-        boolean foundConfigRegion = false;
+        Optional<ProtectedRegion> topRegion = regions.getRegions().stream()
+                .filter(r -> plugin.getConfig().contains("regions." + r.getId()))
+                .max(Comparator.comparingInt(ProtectedRegion::getPriority));
 
-        for (ProtectedRegion region : regions) {
-            String id = region.getId();
+        if (topRegion.isEmpty()) return; // регионов из конфига нет → разрешаем
 
-            if (!plugin.getConfig().contains("regions." + id)) continue;
+        ProtectedRegion region = topRegion.get();
+        boolean allowed = plugin.getConfig()
+                .getBoolean("regions." + region.getId() + "." + action, false);
 
-            foundConfigRegion = true;
-
-            boolean allowed = plugin.getConfig()
-                    .getBoolean("regions." + id + "." + action, false);
-
-            if (allowed) {
-                return true; // 🔥 ХОТЯ БЫ ОДИН РАЗРЕШИЛ
-            }
+        if (!allowed) {
+            event.setCancelled(true);
+            player.sendMessage(
+                    plugin.getConfig()
+                            .getString(messageKey, "&cЗапрещено.")
+                            .replace("&", "§")
+            );
         }
-
-        return !foundConfigRegion; // если регионов из конфига нет — не запрещаем
     }
 
-    private boolean hasBypass(Player player) {
+    private boolean hasBypass(Player p) {
         String perm = plugin.getConfig().getString("bypass-permission");
-        return perm != null && player.hasPermission(perm);
-    }
-
-    private void deny(Cancellable event, Player player, String key) {
-        event.setCancelled(true);
-        player.sendMessage(
-                plugin.getConfig()
-                        .getString(key, "&cЗапрещено.")
-                        .replace("&", "§")
-        );
+        return perm != null && p.hasPermission(perm);
     }
 }
