@@ -7,15 +7,21 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityPlaceEvent;
-import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.hanging.HangingPlaceEvent;
+import org.bukkit.inventory.ItemStack;
+
+import java.util.Set;
 
 public class BlockProtectionListener implements Listener {
 
@@ -25,97 +31,112 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* =====================
-       BLOCK BREAK
-       ===================== */
+    /* =======================
+       BLOCK BREAK / PLACE
+       ======================= */
 
     @EventHandler
-    public void onBlockBreak(BlockBreakEvent e) {
-        if (!check(e.getPlayer(), e.getBlock().getLocation(), "break")) {
-            e.setCancelled(true);
+    public void onBlockBreak(BlockBreakEvent event) {
+        handle(event.getPlayer(), event.getBlock(), event, true);
+    }
+
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        handle(event.getPlayer(), event.getBlock(), event, false);
+    }
+
+    /* =======================
+       BUCKETS (WATER / LAVA)
+       ======================= */
+
+    @EventHandler
+    public void onBucket(PlayerBucketEmptyEvent event) {
+        handle(event.getPlayer(), event.getBlock(), event, false);
+    }
+
+    /* =======================
+       ENTITY PLACE (boats, armorstand, etc)
+       ======================= */
+
+    @EventHandler
+    public void onEntityPlace(PlayerInteractEntityEvent event) {
+        if (!(event.getRightClicked() != null)) return;
+        Block block = event.getRightClicked().getLocation().getBlock();
+        handle(event.getPlayer(), block, event, false);
+    }
+
+    /* =======================
+       ITEM PLACE (boats, frames)
+       ======================= */
+
+    @EventHandler
+    public void onInteract(PlayerInteractEvent event) {
+        if (!event.hasItem() || event.getClickedBlock() == null) return;
+
+        ItemStack item = event.getItem();
+        if (item == null) return;
+
+        Material type = item.getType();
+
+        // Всё что не блок — запрещаем
+        if (!type.isBlock()) {
+            handle(event.getPlayer(), event.getClickedBlock(), event, false);
         }
     }
 
-    /* =====================
-       BLOCK PLACE
-       ===================== */
-
-    @EventHandler
-    public void onBlockPlace(BlockPlaceEvent e) {
-        if (!check(e.getPlayer(), e.getBlock().getLocation(), "place")) {
-            e.setCancelled(true);
-        }
-    }
-
-    /* =====================
-       WATER / LAVA
-       ===================== */
-
-    @EventHandler
-    public void onBucket(PlayerBucketEmptyEvent e) {
-        if (!check(e.getPlayer(), e.getBlockClicked().getLocation(), "place")) {
-            e.setCancelled(true);
-        }
-    }
-
-    /* =====================
-       ENTITIES (boats, armor stands)
-       ===================== */
-
-    @EventHandler
-    public void onEntityPlace(EntityPlaceEvent e) {
-        if (e.getPlayer() == null) return;
-        if (!check(e.getPlayer(), e.getEntity().getLocation(), "place")) {
-            e.setCancelled(true);
-        }
-    }
-
-    /* =====================
+    /* =======================
        FRAMES / PAINTINGS
-       ===================== */
+       ======================= */
 
     @EventHandler
-    public void onHangingPlace(HangingPlaceEvent e) {
-        if (!check(e.getPlayer(), e.getEntity().getLocation(), "place")) {
-            e.setCancelled(true);
-        }
+    public void onHangingPlace(HangingPlaceEvent event) {
+        handle(event.getPlayer(), event.getBlock(), event, false);
     }
 
-    /* =====================
-       CORE CHECK
-       ===================== */
+    /* =======================
+       CORE LOGIC
+       ======================= */
 
-    private boolean check(Player player, Location loc, String action) {
+    private void handle(Player player, Block block, Cancellable event, boolean breaking) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) return true;
+        if (bypass != null && player.hasPermission(bypass)) return;
 
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
-                .get(BukkitAdapter.adapt(loc.getWorld()))
-                .getApplicableRegions(BukkitAdapter.asBlockVector(loc));
+                .get(BukkitAdapter.adapt(block.getWorld()))
+                .getApplicableRegions(BukkitAdapter.asBlockVector(block.getLocation()));
+
+        if (regions.isEmpty()) return;
+
+        Set<String> configRegions = plugin.getConfig()
+                .getConfigurationSection("regions")
+                .getKeys(false);
 
         for (ProtectedRegion region : regions) {
 
             String id = region.getId();
-
-            if (!plugin.getConfig().contains("regions." + id)) continue;
+            if (!configRegions.contains(id)) continue;
 
             boolean allowed = plugin.getConfig().getBoolean(
-                    "regions." + id + "." + action,
+                    "regions." + id + (breaking ? ".break" : ".place"),
                     false
             );
 
-            if (!allowed) {
-                player.sendMessage(
-                        plugin.getConfig()
-                                .getString("messages." + action + "-blocked", "&cЗапрещено.")
-                                .replace("&", "§")
-                );
-                return false;
-            }
+            if (allowed) return;
+
+            String msgKey = breaking
+                    ? "messages.break-blocked"
+                    : "messages.place-blocked";
+
+            String msg = plugin.getConfig()
+                    .getString(msgKey, "&cДействие запрещено.")
+                    .replace("&", "§");
+
+            player.sendMessage(msg);
+            event.setCancelled(true);
+            return;
         }
-        return true;
     }
 }
