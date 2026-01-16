@@ -4,7 +4,7 @@ import me.flexcraft.opsregionng.OPSRegionNG;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -36,11 +36,15 @@ public class BlockProtectionListener implements Listener {
         ApplicableRegionSet regions = getRegions(block);
 
         for (ProtectedRegion region : regions) {
-
             String id = region.getId();
 
-            // 🔥 В АВТОШАХТЕ ЛОМАТЬ МОЖНО
-            if (id.equalsIgnoreCase("mine")) {
+            // ✅ В АВТОШАХТЕ ЛОМАТЬ МОЖНО
+            if (id.equalsIgnoreCase("mine")) return;
+
+            // ❌ В ZONA ломать нельзя
+            if (id.equalsIgnoreCase("zona")) {
+                e.setCancelled(true);
+                player.sendMessage(color(plugin.getConfig().getString("messages.break-blocked")));
                 return;
             }
 
@@ -61,7 +65,7 @@ public class BlockProtectionListener implements Listener {
     }
 
     // =========================
-    // ЛОДКИ / ВЕДРА / СТОЙКИ / ВСЁ ОСТАЛЬНОЕ
+    // ЛОДКИ / ВЕДРА / СТОЙКИ / ВАГОНЕТКИ
     // =========================
     @EventHandler(ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent e) {
@@ -85,16 +89,17 @@ public class BlockProtectionListener implements Listener {
                 type == Material.GLOW_ITEM_FRAME ||
                 type == Material.PAINTING ||
 
-                (name.endsWith("_BUCKET") && type != Material.MILK_BUCKET)
+                // 🪣 ВСЕ ВЁДРА (включая рыб)
+                name.endsWith("_BUCKET")
         ) {
             denyPlace(e.getPlayer(), e.getClickedBlock(), e);
         }
     }
 
     // =========================
-    // ОБЩАЯ ПРОВЕРКА УСТАНОВКИ
+    // ОБЩИЙ ЗАПРЕТ УСТАНОВКИ
     // =========================
-    private void denyPlace(Player player, Block block, Event event) {
+    private void denyPlace(Player player, Block block, Cancellable event) {
 
         if (player.hasPermission(plugin.getConfig().getString("bypass-permission")))
             return;
@@ -105,7 +110,14 @@ public class BlockProtectionListener implements Listener {
 
             String id = region.getId();
 
-            // 🚫 В АВТОШАХТЕ НЕЛЬЗЯ СТАВИТЬ НИЧЕГО
+            // ❌ ZONA — ПОЛНЫЙ ЗАПРЕТ УСТАНОВКИ
+            if (id.equalsIgnoreCase("zona")) {
+                event.setCancelled(true);
+                player.sendMessage(color(plugin.getConfig().getString("messages.place-blocked")));
+                return;
+            }
+
+            // ❌ В MINE ставить нельзя
             if (id.equalsIgnoreCase("mine")) {
                 event.setCancelled(true);
                 player.sendMessage(color(plugin.getConfig().getString("messages.place-blocked")));
@@ -121,7 +133,7 @@ public class BlockProtectionListener implements Listener {
     }
 
     // =========================
-    // WORLDGUARD REGIONS
+    // WORLDGUARD
     // =========================
     private ApplicableRegionSet getRegions(Block block) {
         return WorldGuard.getInstance()
