@@ -1,23 +1,21 @@
 package me.flexcraft.opsregionng.listener;
 
 import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
+import com.sk89q.worldguard.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
 import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.player.PlayerBucketEmptyEvent;
-import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
+import org.bukkit.event.hanging.HangingPlaceEvent;
+import org.bukkit.event.player.PlayerBucketEmptyEvent;
 
 public class BlockProtectionListener implements Listener {
 
@@ -27,9 +25,9 @@ public class BlockProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
-    /* =========================
-       BLOCK BREAK / PLACE
-       ========================= */
+    /* =====================
+       BLOCK BREAK
+       ===================== */
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent e) {
@@ -38,6 +36,10 @@ public class BlockProtectionListener implements Listener {
         }
     }
 
+    /* =====================
+       BLOCK PLACE
+       ===================== */
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent e) {
         if (!check(e.getPlayer(), e.getBlock().getLocation(), "place")) {
@@ -45,9 +47,9 @@ public class BlockProtectionListener implements Listener {
         }
     }
 
-    /* =========================
-       BUCKETS (WATER / LAVA)
-       ========================= */
+    /* =====================
+       WATER / LAVA
+       ===================== */
 
     @EventHandler
     public void onBucket(PlayerBucketEmptyEvent e) {
@@ -56,18 +58,21 @@ public class BlockProtectionListener implements Listener {
         }
     }
 
-    /* =========================
-       ARMOR STANDS / BOATS / ETC
-       ========================= */
+    /* =====================
+       ENTITIES (boats, armor stands)
+       ===================== */
 
     @EventHandler
     public void onEntityPlace(EntityPlaceEvent e) {
-        if (!(e.getPlayer() instanceof Player p)) return;
-
-        if (!check(p, e.getEntity().getLocation(), "place")) {
+        if (e.getPlayer() == null) return;
+        if (!check(e.getPlayer(), e.getEntity().getLocation(), "place")) {
             e.setCancelled(true);
         }
     }
+
+    /* =====================
+       FRAMES / PAINTINGS
+       ===================== */
 
     @EventHandler
     public void onHangingPlace(HangingPlaceEvent e) {
@@ -76,9 +81,9 @@ public class BlockProtectionListener implements Listener {
         }
     }
 
-    /* =========================
-       CORE REGION CHECK
-       ========================= */
+    /* =====================
+       CORE CHECK
+       ===================== */
 
     private boolean check(Player player, Location loc, String action) {
 
@@ -88,8 +93,8 @@ public class BlockProtectionListener implements Listener {
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
-                .get(WorldGuardPlugin.inst().getAdapter().adapt(loc.getWorld()))
-                .getApplicableRegions(WorldGuardPlugin.inst().getAdapter().asBlockVector(loc));
+                .get(BukkitAdapter.adapt(loc.getWorld()))
+                .getApplicableRegions(BukkitAdapter.asBlockVector(loc));
 
         for (ProtectedRegion region : regions) {
 
