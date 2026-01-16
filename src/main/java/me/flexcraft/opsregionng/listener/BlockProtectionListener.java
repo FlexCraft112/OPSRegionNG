@@ -33,8 +33,8 @@ public class BlockProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (isAllowed(player, "break")) {
-            event.setCancelled(false); // 🔥 ПЕРЕБИВАЕМ WorldGuard
+        if (isExplicitlyAllowed(player, "break")) {
+            event.setCancelled(false);
             return;
         }
 
@@ -48,7 +48,7 @@ public class BlockProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (isAllowed(player, "place")) {
+        if (isExplicitlyAllowed(player, "place")) {
             event.setCancelled(false);
             return;
         }
@@ -63,7 +63,7 @@ public class BlockProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (isAllowed(player, "place")) {
+        if (isExplicitlyAllowed(player, "place")) {
             event.setCancelled(false);
             return;
         }
@@ -71,14 +71,14 @@ public class BlockProtectionListener implements Listener {
         deny(event, player, "messages.place-blocked");
     }
 
-    /* ===================== BOATS / ARMOR / MINECART ===================== */
+    /* ===================== ENTITIES (boats, armor, minecart) ===================== */
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityPlace(EntityPlaceEvent event) {
         Player player = event.getPlayer();
         if (player == null || hasBypass(player)) return;
 
-        if (isAllowed(player, "place")) {
+        if (isExplicitlyAllowed(player, "place")) {
             event.setCancelled(false);
             return;
         }
@@ -91,7 +91,7 @@ public class BlockProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (player == null || hasBypass(player)) return;
 
-        if (isAllowed(player, "place")) {
+        if (isExplicitlyAllowed(player, "place")) {
             event.setCancelled(false);
             return;
         }
@@ -104,7 +104,7 @@ public class BlockProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (hasBypass(player)) return;
 
-        if (isAllowed(player, "place")) {
+        if (isExplicitlyAllowed(player, "place")) {
             event.setCancelled(false);
             return;
         }
@@ -112,26 +112,37 @@ public class BlockProtectionListener implements Listener {
         deny(event, player, "messages.place-blocked");
     }
 
-    /* ===================== CORE ===================== */
+    /* ===================== CORE LOGIC ===================== */
 
-    private boolean isAllowed(Player player, String action) {
+    /**
+     * ГЛАВНОЕ:
+     * Если ХОТЯ БЫ ОДИН регион из конфига разрешает действие — РАЗРЕШАЕМ
+     */
+    private boolean isExplicitlyAllowed(Player player, String action) {
         ApplicableRegionSet regions = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
                 .get(BukkitAdapter.adapt(player.getWorld()))
                 .getApplicableRegions(BukkitAdapter.asBlockVector(player.getLocation()));
 
+        boolean foundConfigRegion = false;
+
         for (ProtectedRegion region : regions) {
             String id = region.getId();
 
             if (!plugin.getConfig().contains("regions." + id)) continue;
 
+            foundConfigRegion = true;
+
             boolean allowed = plugin.getConfig()
                     .getBoolean("regions." + id + "." + action, false);
 
-            if (!allowed) return false;
+            if (allowed) {
+                return true; // 🔥 ХОТЯ БЫ ОДИН РАЗРЕШИЛ
+            }
         }
-        return true;
+
+        return !foundConfigRegion; // если регионов из конфига нет — не запрещаем
     }
 
     private boolean hasBypass(Player player) {
