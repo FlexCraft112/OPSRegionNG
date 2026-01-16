@@ -9,6 +9,7 @@ import com.sk89q.worldguard.protection.regions.RegionQuery;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.*;
 import org.bukkit.event.*;
@@ -16,6 +17,7 @@ import org.bukkit.event.block.*;
 import org.bukkit.event.player.*;
 import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.vehicle.VehicleCreateEvent;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.Set;
 
@@ -51,18 +53,26 @@ public class BlockProtectionListener implements Listener {
         check(e.getPlayer(), e.getBlock(), e, false);
     }
 
-    /* ================= ARMOR STANDS / ENTITIES ================= */
+    /* ================= ARMOR STAND (ITEM) ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onEntityPlace(PlayerInteractEntityEvent e) {
-        Entity ent = e.getRightClicked();
+    public void onInteract(PlayerInteractEvent e) {
 
-        if (ent instanceof ArmorStand ||
-            ent instanceof Boat ||
-            ent instanceof ChestBoat ||
-            ent instanceof Minecart) {
+        if (!e.hasItem() || e.getClickedBlock() == null) return;
 
-            check(e.getPlayer(), ent.getLocation().getBlock(), e, false);
+        ItemStack item = e.getItem();
+        Material type = item.getType();
+
+        if (type == Material.ARMOR_STAND ||
+            type == Material.BAMBOO_RAFT ||
+            type == Material.BAMBOO_CHEST_RAFT ||
+            type == Material.MINECART ||
+            type == Material.CHEST_MINECART ||
+            type == Material.FURNACE_MINECART ||
+            type == Material.HOPPER_MINECART ||
+            type == Material.TNT_MINECART) {
+
+            check(e.getPlayer(), e.getClickedBlock(), e, false);
         }
     }
 
@@ -73,20 +83,21 @@ public class BlockProtectionListener implements Listener {
         check(e.getPlayer(), e.getBlock(), e, false);
     }
 
-    /* ================= VEHICLES (RAFTS / BOATS) ================= */
+    /* ================= BOATS / RAFTS / MINECARTS ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onVehicleCreate(VehicleCreateEvent e) {
 
-        if (!(e.getVehicle() instanceof Boat ||
-              e.getVehicle() instanceof ChestBoat ||
-              e.getVehicle() instanceof Minecart)) return;
+        EntityType type = e.getVehicle().getType();
 
-        if (!(e.getVehicle().getWorld().getNearbyPlayers(
-                e.getVehicle().getLocation(), 2).stream().findFirst().isPresent())) return;
+        if (type != EntityType.BOAT &&
+            type != EntityType.CHEST_BOAT &&
+            type != EntityType.MINECART &&
+            type != EntityType.BAMBOO_RAFT &&
+            type != EntityType.BAMBOO_CHEST_RAFT) return;
 
         Player player = e.getVehicle().getWorld()
-                .getNearbyPlayers(e.getVehicle().getLocation(), 2)
+                .getNearbyPlayers(e.getVehicle().getLocation(), 3)
                 .stream().findFirst().orElse(null);
 
         if (player == null) return;
