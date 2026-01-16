@@ -1,12 +1,12 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.util.Location;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 import org.bukkit.Bukkit;
@@ -23,11 +23,9 @@ import org.bukkit.inventory.ItemStack;
 
 public class BlockProtectionListener implements Listener {
 
-    private final OPSRegionNG plugin;
     private final WorldGuardPlugin worldGuard;
 
     public BlockProtectionListener(OPSRegionNG plugin) {
-        this.plugin = plugin;
         this.worldGuard = (WorldGuardPlugin) Bukkit.getPluginManager().getPlugin("WorldGuard");
     }
 
@@ -36,7 +34,7 @@ public class BlockProtectionListener implements Listener {
        =============================== */
     @EventHandler(ignoreCancelled = true)
     public void onBreak(BlockBreakEvent e) {
-        check(e.getPlayer(), e.getBlock(), e, true);
+        check(e.getPlayer(), e.getBlock(), e);
     }
 
     /* ===============================
@@ -44,11 +42,11 @@ public class BlockProtectionListener implements Listener {
        =============================== */
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
-        check(e.getPlayer(), e.getBlockPlaced(), e, false);
+        check(e.getPlayer(), e.getBlockPlaced(), e);
     }
 
     /* ===============================
-       ВСЕ ОБХОДЫ (лодки, стойки, ведра и т.д.)
+       ОБХОДЫ (лодки, стойки, ведра и т.д.)
        =============================== */
     @EventHandler(ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent e) {
@@ -60,10 +58,9 @@ public class BlockProtectionListener implements Listener {
         String name = type.name();
 
         if (
-                // armor stand
                 type == Material.ARMOR_STAND ||
 
-                // ВСЕ лодки / плоты / chest-версии (включая bamboo)
+                // ВСЕ лодки / плоты / chest версии (включая bamboo)
                 name.endsWith("_BOAT") ||
                 name.endsWith("_CHEST_BOAT") ||
                 name.endsWith("_RAFT") ||
@@ -80,14 +77,14 @@ public class BlockProtectionListener implements Listener {
                 type == Material.WATER_BUCKET ||
                 type == Material.LAVA_BUCKET
         ) {
-            check(e.getPlayer(), e.getClickedBlock(), e, false);
+            check(e.getPlayer(), e.getClickedBlock(), e);
         }
     }
 
     /* ===============================
-       ОСНОВНАЯ ПРОВЕРКА WG
+       ПРОВЕРКА WG
        =============================== */
-    private void check(Player player, Block block, Event event, boolean breaking) {
+    private void check(Player player, Block block, Event event) {
 
         if (player.hasPermission("opsregion.bypass")) return;
         if (worldGuard == null) return;
@@ -99,19 +96,24 @@ public class BlockProtectionListener implements Listener {
 
         if (rm == null) return;
 
-        Location wgLoc = BukkitAdapter.adapt(block.getLocation());
-        ApplicableRegionSet regions = rm.getApplicableRegions(wgLoc);
+        BlockVector3 vec = BlockVector3.at(
+                block.getX(),
+                block.getY(),
+                block.getZ()
+        );
+
+        ApplicableRegionSet regions = rm.getApplicableRegions(vec);
 
         for (ProtectedRegion region : regions) {
 
             String id = region.getId().toLowerCase();
 
-            // РАЗРЕШЕННЫЕ регионы (автошахта, лесорубка и т.п.)
+            // РАЗРЕШЁННЫЕ регионы (автошахта / лесорубка)
             if (id.contains("mine") || id.contains("forest") || id.contains("lumber")) {
                 return;
             }
 
-            // СПАВН
+            // СПАВН — ПОЛНЫЙ БЛОК
             if (id.contains("spawn")) {
                 cancel(event, player);
                 return;
