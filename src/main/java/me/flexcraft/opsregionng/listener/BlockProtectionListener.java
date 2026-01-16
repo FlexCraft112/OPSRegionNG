@@ -8,7 +8,6 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import me.flexcraft.opsregionng.OPSRegionNG;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
@@ -16,7 +15,6 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.player.*;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.Set;
 
@@ -30,55 +28,39 @@ public class BlockProtectionListener implements Listener {
         this.wg = (WorldGuardPlugin) Bukkit.getPluginManager().getPlugin("WorldGuard");
     }
 
-    /* ================= BLOCK BREAK ================= */
+    /* ================= BREAK ================= */
 
-    @EventHandler
-    public void onBreak(BlockBreakEvent event) {
-        check(event.getPlayer(), event.getBlock(), event, true);
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBreak(BlockBreakEvent e) {
+        check(e.getPlayer(), e.getBlock(), e, true);
     }
 
-    /* ================= BLOCK PLACE ================= */
+    /* ================= PLACE ================= */
 
-    @EventHandler
-    public void onPlace(BlockPlaceEvent event) {
-        check(event.getPlayer(), event.getBlock(), event, false);
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlace(BlockPlaceEvent e) {
+        check(e.getPlayer(), e.getBlock(), e, false);
     }
 
     /* ================= BUCKETS ================= */
 
-    @EventHandler
-    public void onBucket(PlayerBucketEmptyEvent event) {
-        check(event.getPlayer(), event.getBlock(), event, false);
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBucket(PlayerBucketEmptyEvent e) {
+        check(e.getPlayer(), e.getBlock(), e, false);
     }
 
-    /* ================= BOATS / ARMOR STANDS / ETC ================= */
+    /* ================= ARMOR STANDS / BOATS / FRAMES ================= */
 
-    @EventHandler
-    public void onEntityInteract(PlayerInteractEntityEvent event) {
-        Block block = event.getRightClicked().getLocation().getBlock();
-        check(event.getPlayer(), block, event, false);
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEntity(PlayerInteractEntityEvent e) {
+        check(e.getPlayer(), e.getRightClicked().getLocation().getBlock(), e, false);
     }
 
-    /* ================= ITEM INTERACT (boats, frames) ================= */
+    /* ================= PAINTINGS ================= */
 
-    @EventHandler
-    public void onInteract(PlayerInteractEvent event) {
-        if (!event.hasItem() || event.getClickedBlock() == null) return;
-
-        ItemStack item = event.getItem();
-        if (item == null) return;
-
-        // Всё, что НЕ блок — запрещаем
-        if (!item.getType().isBlock()) {
-            check(event.getPlayer(), event.getClickedBlock(), event, false);
-        }
-    }
-
-    /* ================= PAINTINGS / FRAMES ================= */
-
-    @EventHandler
-    public void onHanging(HangingPlaceEvent event) {
-        check(event.getPlayer(), event.getBlock(), event, false);
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onHanging(HangingPlaceEvent e) {
+        check(e.getPlayer(), e.getBlock(), e, false);
     }
 
     /* ================= CORE ================= */
@@ -90,16 +72,17 @@ public class BlockProtectionListener implements Listener {
         RegionManager rm = wg.getRegionManager(block.getWorld());
         if (rm == null) return;
 
-        ApplicableRegionSet regions = rm.getApplicableRegions(block.getLocation());
+        ApplicableRegionSet regions =
+                rm.getApplicableRegions(block.getLocation().toVector());
+
         if (regions.size() == 0) return;
 
-        Set<String> cfgRegions = plugin.getConfig()
-                .getConfigurationSection("regions")
-                .getKeys(false);
+        Set<String> cfgRegions =
+                plugin.getConfig().getConfigurationSection("regions").getKeys(false);
 
         for (ProtectedRegion region : regions) {
-            String id = region.getId();
 
+            String id = region.getId();
             if (!cfgRegions.contains(id)) continue;
 
             boolean allowed = plugin.getConfig().getBoolean(
@@ -109,12 +92,10 @@ public class BlockProtectionListener implements Listener {
 
             if (allowed) return;
 
-            String msg = plugin.getConfig().getString(
-                    breaking ? "messages.break-blocked" : "messages.place-blocked",
-                    "&cЗапрещено."
-            ).replace("&", "§");
+            player.sendMessage(plugin.getConfig()
+                    .getString(breaking ? "messages.break-blocked" : "messages.place-blocked")
+                    .replace("&", "§"));
 
-            player.sendMessage(msg);
             event.setCancelled(true);
             return;
         }
