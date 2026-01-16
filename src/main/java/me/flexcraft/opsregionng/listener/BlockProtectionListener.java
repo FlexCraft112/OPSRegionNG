@@ -6,16 +6,14 @@ import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.sk89q.worldguard.protection.regions.RegionQuery;
-
 import me.flexcraft.opsregionng.OPSRegionNG;
-
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.block.*;
-import org.bukkit.event.player.*;
 import org.bukkit.event.hanging.HangingPlaceEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.event.vehicle.VehicleCreateEvent;
 import org.bukkit.inventory.ItemStack;
 
@@ -34,28 +32,28 @@ public class BlockProtectionListener implements Listener {
 
     /* ================= BLOCK BREAK ================= */
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true)
     public void onBreak(BlockBreakEvent e) {
         check(e.getPlayer(), e.getBlock(), e, true);
     }
 
     /* ================= BLOCK PLACE ================= */
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
         check(e.getPlayer(), e.getBlock(), e, false);
     }
 
     /* ================= BUCKETS ================= */
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true)
     public void onBucket(PlayerBucketEmptyEvent e) {
         check(e.getPlayer(), e.getBlock(), e, false);
     }
 
-    /* ================= ARMOR STAND (ITEM) ================= */
+    /* ================= ITEM USE (ARMOR STAND, BOATS, RAFTS) ================= */
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent e) {
 
         if (!e.hasItem() || e.getClickedBlock() == null) return;
@@ -63,53 +61,65 @@ public class BlockProtectionListener implements Listener {
         ItemStack item = e.getItem();
         Material type = item.getType();
 
-        if (type == Material.ARMOR_STAND ||
-            type == Material.BAMBOO_RAFT ||
-            type == Material.BAMBOO_CHEST_RAFT ||
-            type == Material.MINECART ||
-            type == Material.CHEST_MINECART ||
-            type == Material.FURNACE_MINECART ||
-            type == Material.HOPPER_MINECART ||
-            type == Material.TNT_MINECART) {
+        if (
+                type == Material.ARMOR_STAND ||
 
+                type == Material.BOAT ||
+                type == Material.CHEST_BOAT ||
+                type == Material.BAMBOO_RAFT ||
+                type == Material.BAMBOO_CHEST_RAFT ||
+
+                type == Material.MINECART ||
+                type == Material.CHEST_MINECART ||
+                type == Material.FURNACE_MINECART ||
+                type == Material.HOPPER_MINECART ||
+                type == Material.TNT_MINECART ||
+
+                type == Material.PAINTING ||
+                type == Material.ITEM_FRAME ||
+                type == Material.GLOW_ITEM_FRAME ||
+
+                type == Material.LAVA_BUCKET ||
+                type == Material.WATER_BUCKET
+        ) {
             check(e.getPlayer(), e.getClickedBlock(), e, false);
         }
     }
 
     /* ================= PAINTINGS / FRAMES ================= */
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true)
     public void onHanging(HangingPlaceEvent e) {
         check(e.getPlayer(), e.getBlock(), e, false);
     }
 
-    /* ================= BOATS / RAFTS / MINECARTS ================= */
+    /* ================= VEHICLES (BOATS / RAFTS / MINECARTS) ================= */
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true)
     public void onVehicleCreate(VehicleCreateEvent e) {
 
-        EntityType type = e.getVehicle().getType();
+        Entity entity = e.getVehicle();
 
-        if (type != EntityType.BOAT &&
-            type != EntityType.CHEST_BOAT &&
-            type != EntityType.MINECART &&
-            type != EntityType.BAMBOO_RAFT &&
-            type != EntityType.BAMBOO_CHEST_RAFT) return;
+        if (
+                entity instanceof Boat ||
+                entity instanceof Minecart
+        ) {
+            Player player = entity.getWorld()
+                    .getNearbyPlayers(entity.getLocation(), 4)
+                    .stream().findFirst().orElse(null);
 
-        Player player = e.getVehicle().getWorld()
-                .getNearbyPlayers(e.getVehicle().getLocation(), 3)
-                .stream().findFirst().orElse(null);
-
-        if (player == null) return;
-
-        check(player, e.getVehicle().getLocation().getBlock(), e, false);
+            if (player != null) {
+                check(player, entity.getLocation().getBlock(), e, false);
+            }
+        }
     }
 
     /* ================= CORE ================= */
 
     private void check(Player player, Block block, Cancellable event, boolean breaking) {
 
-        if (player.hasPermission(plugin.getConfig().getString("bypass-permission"))) return;
+        String bypass = plugin.getConfig().getString("bypass-permission");
+        if (bypass != null && player.hasPermission(bypass)) return;
 
         ApplicableRegionSet regions =
                 query.getApplicableRegions(BukkitAdapter.adapt(block.getLocation()));
