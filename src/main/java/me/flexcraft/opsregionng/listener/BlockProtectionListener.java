@@ -1,113 +1,116 @@
 package me.flexcraft.opsregionng.listener;
 
+import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import me.flexcraft.opsregionng.OPSRegionNG;
 
-import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.Cancellable;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
-import org.bukkit.event.vehicle.VehicleCreateEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.event.entity.EntityPlaceEvent;
 
 public class BlockProtectionListener implements Listener {
 
     private final OPSRegionNG plugin;
-    private final WorldGuardPlugin worldGuard;
 
     public BlockProtectionListener(OPSRegionNG plugin) {
         this.plugin = plugin;
-        this.worldGuard = (WorldGuardPlugin) Bukkit.getPluginManager().getPlugin("WorldGuard");
     }
 
-    /* ================= BLOCKS ================= */
+    /* =========================
+       BLOCK BREAK / PLACE
+       ========================= */
 
     @EventHandler
-    public void onBreak(BlockBreakEvent e) {
-        handle(e.getPlayer(), e, true);
+    public void onBlockBreak(BlockBreakEvent e) {
+        if (!check(e.getPlayer(), e.getBlock().getLocation(), "break")) {
+            e.setCancelled(true);
+        }
     }
 
     @EventHandler
-    public void onPlace(BlockPlaceEvent e) {
-        handle(e.getPlayer(), e, false);
+    public void onBlockPlace(BlockPlaceEvent e) {
+        if (!check(e.getPlayer(), e.getBlock().getLocation(), "place")) {
+            e.setCancelled(true);
+        }
     }
 
-    /* ================= BUCKETS ================= */
+    /* =========================
+       BUCKETS (WATER / LAVA)
+       ========================= */
 
     @EventHandler
     public void onBucket(PlayerBucketEmptyEvent e) {
-        handle(e.getPlayer(), e, false);
+        if (!check(e.getPlayer(), e.getBlockClicked().getLocation(), "place")) {
+            e.setCancelled(true);
+        }
     }
 
-    /* ================= FRAMES / PAINTINGS ================= */
+    /* =========================
+       ARMOR STANDS / BOATS / ETC
+       ========================= */
 
     @EventHandler
-    public void onHanging(HangingPlaceEvent e) {
-        handle(e.getPlayer(), e, false);
-    }
+    public void onEntityPlace(EntityPlaceEvent e) {
+        if (!(e.getPlayer() instanceof Player p)) return;
 
-    /* ================= BOATS / RAFTS / MINECARTS ================= */
+        if (!check(p, e.getEntity().getLocation(), "place")) {
+            e.setCancelled(true);
+        }
+    }
 
     @EventHandler
-    public void onVehicle(VehicleCreateEvent e) {
-        if (!(e.getVehicle().getPassenger() instanceof Player player)) return;
-        handle(player, e, false);
+    public void onHangingPlace(HangingPlaceEvent e) {
+        if (!check(e.getPlayer(), e.getEntity().getLocation(), "place")) {
+            e.setCancelled(true);
+        }
     }
 
-    /* ================= INTERACTIONS (ARMOR STANDS ETC) ================= */
+    /* =========================
+       CORE REGION CHECK
+       ========================= */
 
-    @EventHandler
-    public void onInteract(PlayerInteractEvent e) {
-        if (e.getHand() != EquipmentSlot.HAND) return;
-        if (e.getClickedBlock() == null) return;
-        handle(e.getPlayer(), e, false);
-    }
-
-    /* ================= CORE ================= */
-
-    private void handle(Player player, Cancellable event, boolean breaking) {
+    private boolean check(Player player, Location loc, String action) {
 
         String bypass = plugin.getConfig().getString("bypass-permission");
-        if (bypass != null && player.hasPermission(bypass)) return;
+        if (bypass != null && player.hasPermission(bypass)) return true;
 
-        if (worldGuard == null) return;
-
-        RegionManager manager = worldGuard.getRegionContainer().get(player.getWorld());
-        if (manager == null) return;
-
-        ApplicableRegionSet regions = manager.getApplicableRegions(player.getLocation().toVector().toBlockPoint());
+        ApplicableRegionSet regions = WorldGuard.getInstance()
+                .getPlatform()
+                .getRegionContainer()
+                .get(WorldGuardPlugin.inst().getAdapter().adapt(loc.getWorld()))
+                .getApplicableRegions(WorldGuardPlugin.inst().getAdapter().asBlockVector(loc));
 
         for (ProtectedRegion region : regions) {
 
             String id = region.getId();
-            String base = "regions." + id;
 
-            if (!plugin.getConfig().contains(base)) continue;
+            if (!plugin.getConfig().contains("regions." + id)) continue;
 
             boolean allowed = plugin.getConfig().getBoolean(
-                    base + (breaking ? ".break" : ".place"),
+                    "regions." + id + "." + action,
                     false
             );
 
-            if (allowed) return;
-
-            String msgKey = breaking ? "messages.break-blocked" : "messages.place-blocked";
-            String msg = plugin.getConfig().getString(msgKey, "&cДействие запрещено.")
-                    .replace("&", "§");
-
-            player.sendMessage(msg);
-            event.setCancelled(true);
-            return;
+            if (!allowed) {
+                player.sendMessage(
+                        plugin.getConfig()
+                                .getString("messages." + action + "-blocked", "&cЗапрещено.")
+                                .replace("&", "§")
+                );
+                return false;
+            }
         }
+        return true;
     }
 }
