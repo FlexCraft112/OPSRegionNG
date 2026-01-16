@@ -10,11 +10,12 @@ import com.sk89q.worldguard.protection.regions.RegionQuery;
 import me.flexcraft.opsregionng.OPSRegionNG;
 
 import org.bukkit.block.Block;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.block.*;
 import org.bukkit.event.player.*;
 import org.bukkit.event.hanging.HangingPlaceEvent;
+import org.bukkit.event.vehicle.VehicleCreateEvent;
 
 import java.util.Set;
 
@@ -50,18 +51,47 @@ public class BlockProtectionListener implements Listener {
         check(e.getPlayer(), e.getBlock(), e, false);
     }
 
-    /* ================= ENTITIES ================= */
+    /* ================= ARMOR STANDS / ENTITIES ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onEntity(PlayerInteractEntityEvent e) {
-        check(e.getPlayer(), e.getRightClicked().getLocation().getBlock(), e, false);
+    public void onEntityPlace(PlayerInteractEntityEvent e) {
+        Entity ent = e.getRightClicked();
+
+        if (ent instanceof ArmorStand ||
+            ent instanceof Boat ||
+            ent instanceof ChestBoat ||
+            ent instanceof Minecart) {
+
+            check(e.getPlayer(), ent.getLocation().getBlock(), e, false);
+        }
     }
 
-    /* ================= PAINTINGS ================= */
+    /* ================= PAINTINGS / FRAMES ================= */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onHanging(HangingPlaceEvent e) {
         check(e.getPlayer(), e.getBlock(), e, false);
+    }
+
+    /* ================= VEHICLES (RAFTS / BOATS) ================= */
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onVehicleCreate(VehicleCreateEvent e) {
+
+        if (!(e.getVehicle() instanceof Boat ||
+              e.getVehicle() instanceof ChestBoat ||
+              e.getVehicle() instanceof Minecart)) return;
+
+        if (!(e.getVehicle().getWorld().getNearbyPlayers(
+                e.getVehicle().getLocation(), 2).stream().findFirst().isPresent())) return;
+
+        Player player = e.getVehicle().getWorld()
+                .getNearbyPlayers(e.getVehicle().getLocation(), 2)
+                .stream().findFirst().orElse(null);
+
+        if (player == null) return;
+
+        check(player, e.getVehicle().getLocation().getBlock(), e, false);
     }
 
     /* ================= CORE ================= */
@@ -70,9 +100,8 @@ public class BlockProtectionListener implements Listener {
 
         if (player.hasPermission(plugin.getConfig().getString("bypass-permission"))) return;
 
-        ApplicableRegionSet regions = query.getApplicableRegions(
-                BukkitAdapter.adapt(block.getLocation())
-        );
+        ApplicableRegionSet regions =
+                query.getApplicableRegions(BukkitAdapter.adapt(block.getLocation()));
 
         if (!regions.iterator().hasNext()) return;
 
